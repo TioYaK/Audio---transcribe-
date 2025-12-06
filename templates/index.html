@@ -13,51 +13,76 @@
 </head>
 
 <body>
-    <div class="container">
-        <header>
+    <div class="main-container">
+        <!-- Header -->
+        <header class="header">
             <h1>Transcrição de Áudio</h1>
             <div class="subtitle">Converta áudio em texto localmente com o modelo Whisper</div>
         </header>
 
-        <div id="error-message" class="error-message"></div>
+        <!-- Error Message -->
+        <div id="error-message" class="error-message" style="display:none"></div>
 
-        <!-- Upload Section -->
-        <div id="upload-section">
-            <div id="upload-area" class="upload-area">
-                <svg class="upload-icon" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24"
-                    stroke="currentColor">
-                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
-                        d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12" />
-                </svg>
-                <div class="upload-text">Clique ou arraste o arquivo para esta área para enviar</div>
-                <div class="upload-subtext">Suporta MP3, WAV, M4A, OGG, WEBM, FLAC, OPUS, PTT (Máx 100MB)</div>
-                <input type="file" id="file-input" accept=".mp3,.wav,.m4a,.ogg,.webm,.flac,.opus,.ptt">
-            </div>
-        </div>
+        <!-- Main Dashboard -->
+        <div id="dashboard" class="dashboard">
+            <!-- Left Column: Upload + Status -->
+            <div class="left-column">
+                <div class="panel upload-panel">
+                    <h2>Novo Upload</h2>
+                    <div id="upload-area" class="upload-area">
+                        <svg class="upload-icon" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24"
+                            stroke="currentColor">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12" />
+                        </svg>
+                        <div class="upload-text">Clique ou arraste o arquivo para esta área para enviar</div>
+                        <div class="upload-subtext">Suporta MP3, WAV, M4A, OGG, WEBM, FLAC, OPUS, PTT (Máx 100MB)</div>
+                        <input type="file" id="file-input" accept=".mp3,.wav,.m4a,.ogg,.webm,.flac,.opus,.ptt">
+                    </div>
+                </div>
 
-        <!-- Status Section -->
-        <div id="status-section" class="status-section">
-            <div class="status-card">
-                <div class="status-info">
-                    <div class="spinner"></div>
-                    <span id="status-text" class="status-text">Processando...</span>
+                <div id="status-section" class="status-section" style="display:none">
+                    <div class="status-card">
+                        <div class="status-info">
+                            <div class="spinner"></div>
+                            <span id="status-text" class="status-text">Processando...</span>
+                        </div>
+                        <div class="progress-container">
+                            <div class="progress-bar">
+                                <div class="progress-fill" id="progress-fill"></div>
+                            </div>
+                            <div class="progress-text">
+                                <span id="progress-label">Preparando...</span>
+                            </div>
+                        </div>
+                    </div>
                 </div>
             </div>
+
+            <!-- Right Column: History -->
+            <div class="panel history-panel">
+                <h2>Histórico de Transcrições</h2>
+                <div id="history-list" class="history-list"></div>
+            </div>
         </div>
 
-        <!-- Result Section -->
+        <!-- Result View (Modal/Overlay) -->
         <div id="result-section" class="result-section">
-            <div class="result-header">
-                <h2 style="font-size: 1.25rem; font-weight: 600; margin: 0;">Resultado da Transcrição</h2>
+            <div class="result-container">
+                <div class="result-header">
+                    <h2>Resultado da Transcrição</h2>
+                    <button id="btn-close-result" class="btn-close">&times;</button>
+                </div>
+
                 <div id="result-meta" class="result-meta"></div>
-            </div>
 
-            <textarea id="result-text" class="result-box" readonly></textarea>
+                <textarea id="result-text" class="result-box" readonly></textarea>
 
-            <div class="btn-group">
-                <button id="btn-download" class="btn btn-primary">Baixar .txt</button>
-                <button id="btn-copy" class="btn btn-secondary">Copiar texto</button>
-                <button id="btn-new" class="btn btn-secondary">Nova transcrição</button>
+                <div class="btn-group">
+                    <button id="btn-download" class="btn btn-primary">Baixar .txt</button>
+                    <button id="btn-copy" class="btn btn-secondary">Copiar texto</button>
+                    <button id="btn-close-result-bottom" class="btn btn-secondary">Voltar</button>
+                </div>
             </div>
         </div>
     </div>

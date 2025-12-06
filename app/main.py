@@ -178,6 +178,18 @@ async def get_status(task_id: str, db: Session = Depends(get_db)):
         "created_at": task.created_at,
     }
     
+    # Calculate progress percentage
+    progress = 0
+    if task.status == "processing" and task.started_at:
+        # Estimate progress based on elapsed time (assume 30-60s typical processing)
+        from datetime import datetime
+        elapsed = (datetime.utcnow() - task.started_at).total_seconds()
+        progress = min(90, int((elapsed / 30) * 100))  # Cap at 90% until completion
+    elif task.status == "completed":
+        progress = 100
+    
+    response["progress"] = progress
+    
     if task.status == "failed":
         response["error"] = task.error_message
         
@@ -233,6 +245,27 @@ async def download_result(task_id: str, db: Session = Depends(get_db)):
         filename=filename, 
         media_type="text/plain"
     )
+
+@app.get("/api/history")
+async def get_history(db: Session = Depends(get_db)):
+    """Get all completed transcriptions with filename and text."""
+    task_store = crud.TaskStore(db)
+    tasks = db.query(models.TranscriptionTask).filter(
+        models.TranscriptionTask.status == "completed"
+    ).order_by(models.TranscriptionTask.completed_at.desc()).all()
+    
+    return [
+        {
+            "task_id": task.task_id,
+            "filename": task.filename,
+            "text": task.result_text,
+            "language": task.language,
+            "duration": task.duration,
+            "processing_time": task.processing_time,
+            "completed_at": task.completed_at.isoformat() if task.completed_at else None
+        }
+        for task in tasks
+    ]
 
 # Error handling
 @app.exception_handler(Exception)
