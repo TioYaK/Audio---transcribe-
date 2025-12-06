@@ -53,7 +53,7 @@
   - **Property 9: Validation occurs before processing**
   - **Validates: Requirements 1.3**
 
-- [ ] 5. Implement FastAPI endpoints
+- [x] 5. Implement FastAPI endpoints
   - Create FastAPI app with CORS configuration
   - Mount StaticFiles to serve CSS/JS from static/ directory
   - Implement GET / endpoint to serve index.html
@@ -64,15 +64,15 @@
   - Add error handling middleware
   - _Requirements: 1.1, 1.2, 1.3, 1.5, 2.1, 2.2, 2.3, 2.4_
 
-- [ ] 5.1 Write property test for upload endpoint
+- [x] 5.1 Write property test for upload endpoint
   - **Property 4: Upload returns task ID immediately**
   - **Validates: Requirements 1.3, 1.5**
 
-- [ ] 5.2 Write property test for download endpoint
+- [x] 5.2 Write property test for download endpoint
   - **Property 7: Download generates correct file**
   - **Validates: Requirements 2.3**
 
-- [ ] 5.3 Write property test for download filename format
+- [x] 5.3 Write property test for download filename format
   - **Property 8: Download filename format**
   - **Validates: Requirements 2.4**
 
