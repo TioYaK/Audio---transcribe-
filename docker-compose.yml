@@ -11,7 +11,7 @@ services:
       - uploads:/app/uploads
       - database:/app/data
     environment:
-      - WHISPER_MODEL=${WHISPER_MODEL:-base}
+      - WHISPER_MODEL=${WHISPER_MODEL:-small}
       - MAX_FILE_SIZE_MB=${MAX_FILE_SIZE_MB:-100}
       - ALLOWED_EXTENSIONS=${ALLOWED_EXTENSIONS:-mp3,wav,m4a,ogg,webm,flac}
       - DATABASE_PATH=${DATABASE_PATH:-/app/data/transcriptions.db}
