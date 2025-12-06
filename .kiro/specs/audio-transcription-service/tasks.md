@@ -8,14 +8,14 @@
   - Create .env.example with environment variables
   - _Requirements: 4.1, 4.2, 6.1_
 
-- [ ] 2. Implement database layer with SQLite
+- [x] 2. Implement database layer with SQLite
   - Create database models for TranscriptionTask using SQLAlchemy/SQLModel
   - Implement TaskStore class with CRUD operations
   - Create database initialization and migration logic
   - Add connection management and session handling
   - _Requirements: 1.5, 2.1_
 
-- [ ] 2.1 Write property test for task storage
+- [x] 2.1 Write property test for task storage
   - **Property 5: Status polling reflects processing state**
   - **Validates: Requirements 1.5, 2.1**
 
