@@ -13,6 +13,8 @@ from . import models, crud
 from .validation import FileValidator
 from .whisper_service import WhisperService
 
+from .config import settings, logger
+
 # Create database tables
 models.Base.metadata.create_all(bind=engine)
 
@@ -31,22 +33,25 @@ app.add_middleware(
 app.mount("/static", StaticFiles(directory="static"), name="static")
 
 # Initialize services
-# We initialize WhisperService lazily or globally. 
-# For now, let's keep it global but we might want to handle it differently in production
-# to avoid blocking startup or to handle multiple workers.
-# Since we are using threads in the service, one instance is okay.
 whisper_service = WhisperService(
-    model_size=os.getenv("WHISPER_MODEL", "base"),
-    device="cpu" # force cpu for now based on docker config, or env
+    model_size=settings.WHISPER_MODEL,
+    device=settings.DEVICE,
+    compute_type=settings.COMPUTE_TYPE
 )
 
 validator = FileValidator(
-    allowed_extensions=os.getenv("ALLOWED_EXTENSIONS", "mp3,wav,m4a,ogg,webm,flac").split(","),
-    max_size_mb=int(os.getenv("MAX_FILE_SIZE_MB", 100))
+    allowed_extensions=settings.ALLOWED_EXTENSIONS,
+    max_size_mb=settings.MAX_FILE_SIZE_MB
 )
 
-UPLOAD_DIR = "/app/uploads"
+UPLOAD_DIR = settings.UPLOAD_DIR
 os.makedirs(UPLOAD_DIR, exist_ok=True)
+
+@app.on_event("startup")
+async def startup_event():
+    logger.info("Service starting up...")
+    logger.info(f"Model: {settings.WHISPER_MODEL}, Device: {settings.DEVICE}")
+
 
 @app.get("/", response_class=HTMLResponse)
 async def read_root():
