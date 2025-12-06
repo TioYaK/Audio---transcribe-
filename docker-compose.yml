@@ -16,6 +16,13 @@ services:
       - ALLOWED_EXTENSIONS=${ALLOWED_EXTENSIONS:-mp3,wav,m4a,ogg,webm,flac}
       - DATABASE_PATH=${DATABASE_PATH:-/app/data/transcriptions.db}
       - CLEANUP_AFTER_HOURS=${CLEANUP_AFTER_HOURS:-24}
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: 1
+              capabilities: [gpu]
 
 volumes:
   whisper-models:
