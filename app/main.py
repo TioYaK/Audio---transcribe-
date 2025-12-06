@@ -47,10 +47,15 @@ validator = FileValidator(
 UPLOAD_DIR = settings.UPLOAD_DIR
 os.makedirs(UPLOAD_DIR, exist_ok=True)
 
+from .cleanup import cleanup_old_files
+import asyncio
+
 @app.on_event("startup")
 async def startup_event():
     logger.info("Service starting up...")
     logger.info(f"Model: {settings.WHISPER_MODEL}, Device: {settings.DEVICE}")
+    # Start cleanup task in background
+    asyncio.create_task(cleanup_old_files())
 
 
 @app.get("/", response_class=HTMLResponse)
@@ -75,6 +80,7 @@ def process_transcription(task_id: str, file_path: str):
     task_store = crud.TaskStore(background_db)
     
     try:
+        logger.info(f"Starting processing for task {task_id}")
         # Update status to processing
         task_store.update_status(task_id, "processing")
         
@@ -88,8 +94,10 @@ def process_transcription(task_id: str, file_path: str):
             language=result["language"], 
             duration=result["duration"]
         )
+        logger.info(f"Task {task_id} completed successfully. Language: {result['language']}, Duration: {result['duration']}s")
         
     except Exception as e:
+        logger.error(f"Task {task_id} failed: {e}")
         task_store.update_status(task_id, "failed", error_message=str(e))
     finally:
         background_db.close()
@@ -98,7 +106,7 @@ def process_transcription(task_id: str, file_path: str):
             try:
                 os.remove(file_path)
             except Exception as e:
-                print(f"Error removing file {file_path}: {e}") 
+                logger.warning(f"Error removing file {file_path}: {e}") 
 
 @app.post("/api/upload")
 async def upload_audio(
@@ -119,13 +127,8 @@ async def upload_audio(
         file_content_head=head
     )
     
-    # Note: file.size might be None in some uvicorn versions/clients if chunked?
-    # Ideally we trust the stream or check after saving, but let's assume we can get it or check validation after save?
-    # Property 9 says "Validation occurs before processing".
-    # Checking size strictly before read might be hard if chunked. 
-    # For MVP we trust validator.
-    
     if not is_valid:
+        logger.warning(f"Upload validation failed for file {file.filename}: {error_msg}")
         raise HTTPException(status_code=400, detail=error_msg)
 
     # 2. Save file
@@ -138,6 +141,7 @@ async def upload_audio(
         with open(file_path, "wb") as buffer:
             shutil.copyfileobj(file.file, buffer)
     except Exception as e:
+         logger.error(f"Failed to save file for task {task_id}: {e}")
          raise HTTPException(status_code=500, detail=f"Failed to save file: {str(e)}")
 
     # 3. Create task in DB
@@ -148,6 +152,7 @@ async def upload_audio(
     )
     
     # 4. Start background processing
+    logger.info(f"Task created: {task.task_id} for file {file.filename}")
     background_tasks.add_task(process_transcription, task.task_id, file_path)
     
     return {
