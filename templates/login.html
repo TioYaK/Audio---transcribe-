@@ -1,0 +1,288 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Login - Transcribe.ai</title>
+    <script src="https://unpkg.com/@phosphor-icons/web"></script>
+    <link rel="stylesheet" href="/static/style.css">
+    <style>
+        body {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            background: var(--bg-body);
+        }
+
+        .login-card {
+            background: var(--bg-card);
+            padding: 40px;
+            border-radius: 24px;
+            width: 100%;
+            max-width: 400px;
+            border: 1px solid var(--border);
+            box-shadow: var(--shadow-lg);
+            text-align: center;
+        }
+
+        .login-logo {
+            color: var(--primary);
+            font-size: 3rem;
+            margin-bottom: 16px;
+        }
+
+        .form-group {
+            margin-bottom: 20px;
+            text-align: left;
+        }
+
+        .form-group label {
+            display: block;
+            margin-bottom: 8px;
+            font-weight: 500;
+            color: var(--text-muted);
+        }
+
+        .form-input {
+            width: 100%;
+            padding: 12px;
+            border-radius: 12px;
+            border: 1px solid var(--border);
+            background: var(--bg-input);
+            color: var(--text-main);
+            font-family: inherit;
+        }
+
+        .form-input:focus {
+            outline: none;
+            border-color: var(--primary);
+        }
+
+        .btn-login {
+            background: linear-gradient(135deg, var(--primary), var(--accent));
+            color: white;
+            width: 100%;
+            padding: 12px;
+            border-radius: 12px;
+            border: none;
+            font-weight: 600;
+            cursor: pointer;
+            margin-top: 8px;
+        }
+
+        .btn-link {
+            background: none;
+            border: none;
+            color: var(--primary);
+            font-size: 0.9rem;
+            cursor: pointer;
+            margin-top: 16px;
+            text-decoration: underline;
+        }
+
+        .error-msg {
+            color: var(--danger);
+            margin-top: 16px;
+            font-size: 0.9rem;
+            display: none;
+        }
+
+        .success-msg {
+            color: var(--success);
+            margin-top: 16px;
+            font-size: 0.9rem;
+            display: none;
+        }
+    </style>
+</head>
+
+<body>
+    <div class="login-card">
+        <i class="ph-fill ph-wave-sine login-logo"></i>
+        <h2 id="card-title" style="margin:0 0 8px 0;">Bem-vindo</h2>
+        <p id="card-subtitle" style="color:var(--text-muted); margin:0 0 24px 0;">Faça login para continuar</p>
+
+        <!-- Login Form -->
+        <form id="login-form">
+            <div class="form-group">
+                <label>Usuário</label>
+                <input type="text" id="login-user" class="form-input" required>
+            </div>
+            <div class="form-group">
+                <label>Senha</label>
+                <input type="password" id="login-pass" class="form-input" required>
+            </div>
+            <button type="submit" class="btn-login">Entrar</button>
+            <div class="error-msg" id="login-error"></div>
+        </form>
+
+        <!-- Register Form -->
+        <form id="register-form" class="hidden">
+            <div class="form-group">
+                <label>Novo Usuário (Login)</label>
+                <input type="text" id="reg-user" class="form-input" required>
+            </div>
+            <div class="form-group">
+                <label>Nome Completo</label>
+                <input type="text" id="reg-name" class="form-input" required>
+            </div>
+            <div class="form-group">
+                <label>E-mail</label>
+                <input type="email" id="reg-email" class="form-input" required>
+            </div>
+            <div class="form-group">
+                <label>Nova Senha</label>
+                <input type="password" id="reg-pass" class="form-input" required>
+            </div>
+            <button type="submit" class="btn-login" style="background:var(--secondary);">Criar Conta</button>
+            <div class="error-msg" id="reg-error"></div>
+            <div class="success-msg" id="reg-success"></div>
+        </form>
+
+        <button id="toggle-form" class="btn-link">Criar uma conta</button>
+
+        <div style="margin-top: 24px; display: flex; justify-content: center;">
+            <button id="theme-toggle-login"
+                style="background:none; border:none; cursor:pointer; color:var(--text-muted); display:flex; align-items:center; gap:8px;">
+                <i class="ph ph-moon" id="theme-icon-login"></i>
+                <span id="theme-label-login">Modo Escuro</span>
+            </button>
+        </div>
+    </div>
+
+    <script>
+        // Force logout on page load
+        sessionStorage.removeItem('access_token');
+        sessionStorage.removeItem('is_admin');
+        // Clear localStorage tokens if they exist from old version
+        localStorage.removeItem('access_token');
+        localStorage.removeItem('is_admin');
+
+        const loginForm = document.getElementById('login-form');
+        const registerForm = document.getElementById('register-form');
+        const toggleBtn = document.getElementById('toggle-form');
+        const cardTitle = document.getElementById('card-title');
+
+        // Theme Logic
+        const themeToggleBtn = document.getElementById('theme-toggle-login');
+        const themeIcon = document.getElementById('theme-icon-login');
+        const themeLabel = document.getElementById('theme-label-login');
+
+        function updateThemeUI(theme) {
+            document.documentElement.setAttribute('data-theme', theme);
+            if (theme === 'dark') {
+                themeIcon.classList.replace('ph-moon', 'ph-sun');
+                themeLabel.textContent = 'Modo Claro';
+            } else {
+                themeIcon.classList.replace('ph-sun', 'ph-moon');
+                themeLabel.textContent = 'Modo Escuro';
+            }
+        }
+
+        const savedTheme = localStorage.getItem('theme') || 'light';
+        updateThemeUI(savedTheme);
+
+        themeToggleBtn.addEventListener('click', () => {
+            const current = document.documentElement.getAttribute('data-theme');
+            const next = current === 'dark' ? 'light' : 'dark';
+            localStorage.setItem('theme', next);
+            updateThemeUI(next);
+        });
+
+        // Form Logic
+
+        let isLogin = true;
+
+        toggleBtn.addEventListener('click', () => {
+            isLogin = !isLogin;
+            if (isLogin) {
+                loginForm.classList.remove('hidden');
+                registerForm.classList.add('hidden');
+                cardTitle.textContent = 'Bem-vindo';
+                toggleBtn.textContent = 'Criar uma conta';
+            } else {
+                loginForm.classList.add('hidden');
+                registerForm.classList.remove('hidden');
+                cardTitle.textContent = 'Registro';
+                toggleBtn.textContent = 'Já tenho uma conta';
+            }
+        });
+
+        loginForm.addEventListener('submit', async (e) => {
+            e.preventDefault();
+            const user = document.getElementById('login-user').value;
+            const pass = document.getElementById('login-pass').value;
+            const errorEl = document.getElementById('login-error');
+
+            const formData = new FormData();
+            formData.append('username', user);
+            formData.append('password', pass);
+
+            try {
+                const res = await fetch('/token', {
+                    method: 'POST',
+                    body: formData
+                });
+                const data = await res.json();
+
+                if (res.ok) {
+                    sessionStorage.setItem('access_token', data.access_token);
+                    sessionStorage.setItem('is_admin', data.is_admin);
+                    window.location.href = '/';
+                } else {
+                    errorEl.textContent = data.detail || 'Falha no login';
+                    errorEl.style.display = 'block';
+                }
+            } catch (err) {
+                errorEl.textContent = 'Erro de conexão';
+                errorEl.style.display = 'block';
+            }
+        });
+
+        registerForm.addEventListener('submit', async (e) => {
+            e.preventDefault();
+            const user = document.getElementById('reg-user').value;
+            const pass = document.getElementById('reg-pass').value;
+            const name = document.getElementById('reg-name').value;
+            const email = document.getElementById('reg-email').value;
+
+            const errorEl = document.getElementById('reg-error');
+            const successEl = document.getElementById('reg-success');
+
+            try {
+                const res = await fetch('/register', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        username: user,
+                        password: pass,
+                        full_name: name,
+                        email: email
+                    })
+                });
+                const data = await res.json();
+
+                if (res.ok) {
+                    errorEl.style.display = 'none';
+                    successEl.textContent = 'Conta criada! Aguarde aprovação do admin.';
+                    successEl.style.display = 'block';
+                    document.getElementById('reg-user').value = '';
+                    document.getElementById('reg-pass').value = '';
+                    document.getElementById('reg-name').value = '';
+                    document.getElementById('reg-email').value = '';
+                } else {
+                    successEl.style.display = 'none';
+                    errorEl.textContent = data.detail || 'Erro ao criar conta';
+                    errorEl.style.display = 'block';
+                }
+            } catch (err) {
+                errorEl.textContent = 'Erro de conexão';
+                errorEl.style.display = 'block';
+            }
+        });
+
+    </script>
+</body>
+
+</html>

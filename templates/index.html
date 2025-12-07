@@ -20,95 +20,96 @@
             </div>
 
             <nav class="nav-links">
-                <a href="#" class="nav-item active">
+                <a href="#" class="nav-item active" id="dashboard-link">
                     <i class="ph ph-squares-four"></i>
                     <span>Dashboard</span>
                 </a>
-                <a href="#" class="nav-item">
-                    <i class="ph ph-folder-open"></i>
-                    <span>Arquivos</span>
-                </a>
-                <a href="#" class="nav-item">
-                    <i class="ph ph-chart-bar"></i>
-                    <span>Analytics</span>
+                <a href="#" class="nav-item hidden" id="admin-link">
+                    <i class="ph ph-shield-check"></i>
+                    <span>Admin</span>
                 </a>
             </nav>
 
-            <div class="sidebar-footer">
+            <div class="nav-footer">
                 <div class="theme-toggle" id="theme-toggle">
-                    <div style="display:flex;align-items:center;gap:8px">
-                        <i class="ph ph-moon" id="theme-icon"></i>
-                        <span class="toggle-label">Modo Escuro</span>
-                    </div>
-                    <div style="font-size:0.8rem;color:var(--text-muted)">v2.0</div>
+                    <i class="ph ph-sun" id="theme-icon"></i>
+                    <span class="toggle-label">Modo Claro</span>
+                </div>
+                <div class="theme-toggle" id="logout-btn" style="margin-top: 8px; cursor: pointer;">
+                    <i class="ph ph-sign-out"></i>
+                    <span>Sair</span>
                 </div>
             </div>
         </aside>
 
         <!-- Main Content -->
         <main class="main-content">
-            <div class="header-bar">
-                <div class="page-title">
-                    <h1>Dashboard</h1>
-                    <p>Gerencie suas transcrições de áudio</p>
-                </div>
-                <div class="user-profile">
-                    <!-- Placeholder for user avatar if needed, otherwise empty or stats -->
-                </div>
-            </div>
-
-            <!-- Upload Section -->
-            <div class="glass-card">
-                <div class="upload-zone" id="upload-zone">
-                    <i class="ph ph-cloud-arrow-up upload-icon-large"></i>
-                    <h3>Arraste e solte seus arquivos</h3>
-                    <p style="color:var(--text-muted); margin-bottom: 20px;">Ou clique para selecionar (MP3, WAV,
-                        M4A...)</p>
-                    <button class="btn-upload-trigger">Selecionar Arquivos</button>
-                    <input type="file" id="file-input" multiple hidden
-                        accept=".mp3,.wav,.m4a,.ogg,.webm,.flac,.opus,.ptt">
+            <div id="dashboard-view">
+                <div class="header-bar">
+                    <div class="page-title">
+                        <h1>Dashboard</h1>
+                        <p>Gerencie suas transcrições de áudio</p>
+                    </div>
                 </div>
 
-                <!-- Live Progress List -->
-                <div id="status-section" class="status-section hidden">
-                    <h4 style="margin:0 0 12px 0;">Enviando...</h4>
-                    <div id="inprogress-list">
-                        <!-- Progress Items injected here -->
+                <!-- Upload Section -->
+                <div class="glass-card">
+                    <div class="upload-zone" id="upload-zone">
+                        <i class="ph ph-cloud-arrow-up upload-icon-large"></i>
+                        <h3>Arraste e solte seus arquivos</h3>
+                        <p style="color:var(--text-muted); margin-bottom: 20px;">Ou clique para selecionar (MP3, WAV,
+                            M4A...)</p>
+                        <button class="btn-upload-trigger">Selecionar Arquivos</button>
+                        <input type="file" id="file-input" multiple hidden
+                            accept=".mp3,.wav,.m4a,.ogg,.webm,.flac,.opus,.ptt">
+                    </div>
+
+                    <!-- Live Progress List -->
+                    <div id="status-section" class="status-section hidden">
+                        <h4 style="margin:0 0 12px 0;">Enviando...</h4>
+                        <div id="inprogress-list">
+                            <!-- Progress Items injected here -->
+                        </div>
+                    </div>
+                </div>
+
+                <!-- History Section -->
+                <div class="glass-card" style="padding:0; overflow:hidden;">
+                    <div
+                        style="padding: 24px; border-bottom: 1px solid var(--border); display:flex; justify-content:space-between; align-items:center;">
+                        <h3 style="margin:0;">Histórico Recente</h3>
+                        <button class="action-btn" id="btn-clear-history" title="Limpar Histórico">
+                            <i class="ph ph-trash"></i>
+                        </button>
+                    </div>
+
+                    <div class="table-container">
+                        <table id="history-table">
+                            <thead>
+                                <tr>
+                                    <th>Arquivo</th>
+                                    <th>Data</th>
+                                    <th>Duração</th>
+                                    <th>Status Análise</th>
+                                    <th>Ações</th>
+                                </tr>
+                            </thead>
+                            <tbody id="history-body">
+                                <!-- Items injected here -->
+                            </tbody>
+                        </table>
+                    </div>
+                    <!-- Empty State -->
+                    <div id="empty-state" class="hidden"
+                        style="padding:40px; text-align:center; color:var(--text-muted);">
+                        <i class="ph ph-ghost" style="font-size:2rem; margin-bottom:8px;"></i>
+                        <p>Nenhuma transcrição encontrada.</p>
                     </div>
                 </div>
             </div>
 
-            <!-- History Section -->
-            <div class="glass-card" style="padding:0; overflow:hidden;">
-                <div
-                    style="padding: 24px; border-bottom: 1px solid var(--border); display:flex; justify-content:space-between; align-items:center;">
-                    <h3 style="margin:0;">Histórico Recente</h3>
-                    <button class="action-btn" id="btn-clear-history" title="Limpar Histórico">
-                        <i class="ph ph-trash"></i>
-                    </button>
-                </div>
-
-                <div class="table-container">
-                    <table id="history-table">
-                        <thead>
-                            <tr>
-                                <th>Arquivo</th>
-                                <th>Data</th>
-                                <th>Duração</th>
-                                <th>Status Análise</th>
-                                <th>Ações</th>
-                            </tr>
-                        </thead>
-                        <tbody id="history-body">
-                            <!-- Items injected here -->
-                        </tbody>
-                    </table>
-                </div>
-                <!-- Empty State -->
-                <div id="empty-state" class="hidden" style="padding:40px; text-align:center; color:var(--text-muted);">
-                    <i class="ph ph-ghost" style="font-size:2rem; margin-bottom:8px;"></i>
-                    <p>Nenhuma transcrição encontrada.</p>
-                </div>
+            <div id="admin-view" class="hidden">
+                <!-- Admin Panel Injected Here -->
             </div>
         </main>
     </div>

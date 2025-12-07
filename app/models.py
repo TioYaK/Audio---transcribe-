@@ -1,4 +1,4 @@
-from sqlalchemy import Column, String, DateTime, Float, Text
+from sqlalchemy import Column, String, DateTime, Float, Text, Integer
 from datetime import datetime
 from .database import Base
 import uuid
@@ -20,6 +20,7 @@ class TranscriptionTask(Base):
     duration = Column(Float, nullable=True)
     processing_time = Column(Float, nullable=True)
     analysis_status = Column(String, default="Pendente de análise", nullable=True)
+    owner_id = Column(String, nullable=True) # ForeignKey to User.id (as string uuid)
 
     def to_dict(self):
         """Helper method to convert model to dictionary for API responses"""
@@ -37,3 +38,17 @@ class TranscriptionTask(Base):
             "analysis_status": self.analysis_status or "Pendente de análise"
             # omitting result_text for list views usually, but can be added if needed
         }
+
+class User(Base):
+    __tablename__ = "users"
+
+    id = Column(String, primary_key=True, default=lambda: str(uuid.uuid4()))
+    username = Column(String, unique=True, index=True)
+    hashed_password = Column(String)
+    full_name = Column(String, nullable=True)
+    email = Column(String, nullable=True)
+    is_active = Column(String, default="False") # Boolean as string for simplicity in SQLite or use Boolean
+    is_admin = Column(String, default="False")
+    transcription_limit = Column(Integer, default=10)
+
+

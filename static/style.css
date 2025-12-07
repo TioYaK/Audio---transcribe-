@@ -344,7 +344,7 @@ tr:hover td {
 
 /* Analysis Select */
 .status-select {
-    background: transparent;
+    background: var(--bg-input);
     border: 1px solid var(--border);
     color: var(--text-main);
     padding: 6px 10px;
@@ -352,6 +352,11 @@ tr:hover td {
     font-family: inherit;
     font-size: 0.85rem;
     cursor: pointer;
+}
+
+.status-select option {
+    background-color: var(--bg-card);
+    color: var(--text-main);
 }
 
 .status-select:focus {
