@@ -22,7 +22,7 @@ from time import perf_counter
 # Create database tables
 models.Base.metadata.create_all(bind=engine)
 
-app = FastAPI(title="Audio Transcription Service")
+app = FastAPI(title="Careca.ai")
 
 # CORS configuration
 app.add_middleware(
