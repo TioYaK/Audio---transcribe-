@@ -17,6 +17,7 @@ class TranscriptionTask(Base):
     result_text = Column(Text, nullable=True)
     language = Column(String, nullable=True)
     duration = Column(Float, nullable=True)
+    processing_time = Column(Float, nullable=True)
 
     def to_dict(self):
         """Helper method to convert model to dictionary for API responses"""
@@ -29,6 +30,7 @@ class TranscriptionTask(Base):
             "completed_at": self.completed_at.isoformat() if self.completed_at else None,
             "error_message": self.error_message,
             "language": self.language,
-            "duration": self.duration
+            "duration": self.duration,
+            "processing_time": self.processing_time
             # omitting result_text for list views usually, but can be added if needed
         }

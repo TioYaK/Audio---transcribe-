@@ -9,7 +9,7 @@ An offline, containerized web service for transcribing audio files using OpenAI'
 - **Optimized Performance**: Uses `faster-whisper` (CTranslate2) for up to 4x faster transcription than the original Whisper implementation.
 - **Simple Interface**: Drag-and-drop web interface for easy uploads.
 - **REST API**: Fully featured API for automation.
-- **Background Processing**: Handles large files asynchronously.
+- **Background Processing**: Handles large files asynchronously..
 - **Dockerized**: Easy setup and deployment with Docker Compose.
 
 ## Prerequisites

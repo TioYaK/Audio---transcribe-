@@ -14,6 +14,7 @@ from .validation import FileValidator
 from .whisper_service import WhisperService
 
 from .config import settings, logger
+from time import perf_counter
 
 # Create database tables
 models.Base.metadata.create_all(bind=engine)
@@ -85,16 +86,19 @@ def process_transcription(task_id: str, file_path: str):
         task_store.update_status(task_id, "processing")
         
         # Transcribe
+        start_ts = perf_counter()
         result = whisper_service.transcribe(file_path)
-        
-        # Save result
+        processing_time = perf_counter() - start_ts
+
+        # Save result including processing time
         task_store.save_result(
             task_id, 
             text=result["text"], 
             language=result["language"], 
-            duration=result["duration"]
+            duration=result["duration"],
+            processing_time=processing_time
         )
-        logger.info(f"Task {task_id} completed successfully. Language: {result['language']}, Duration: {result['duration']}s")
+        logger.info(f"Task {task_id} completed successfully. Language: {result['language']}, Duration: {result['duration']}s, Processing time: {processing_time:.2f}s")
         
     except Exception as e:
         logger.error(f"Task {task_id} failed: {e}")
@@ -174,6 +178,18 @@ async def get_status(task_id: str, db: Session = Depends(get_db)):
         "created_at": task.created_at,
     }
     
+    # Calculate progress percentage
+    progress = 0
+    if task.status == "processing" and task.started_at:
+        # Estimate progress based on elapsed time (assume 30-60s typical processing)
+        from datetime import datetime
+        elapsed = (datetime.utcnow() - task.started_at).total_seconds()
+        progress = min(90, int((elapsed / 30) * 100))  # Cap at 90% until completion
+    elif task.status == "completed":
+        progress = 100
+    
+    response["progress"] = progress
+    
     if task.status == "failed":
         response["error"] = task.error_message
         
@@ -194,6 +210,7 @@ async def get_result(task_id: str, db: Session = Depends(get_db)):
         "text": task.result_text,
         "language": task.language,
         "duration": task.duration,
+        "processing_time": task.processing_time,
         "filename": task.filename,
         "completed_at": task.completed_at
     }
@@ -228,6 +245,57 @@ async def download_result(task_id: str, db: Session = Depends(get_db)):
         filename=filename, 
         media_type="text/plain"
     )
+
+@app.get("/api/history")
+async def get_history(db: Session = Depends(get_db)):
+    """Get all completed transcriptions with filename and text."""
+    task_store = crud.TaskStore(db)
+    tasks = db.query(models.TranscriptionTask).filter(
+        models.TranscriptionTask.status == "completed"
+    ).order_by(models.TranscriptionTask.completed_at.desc()).all()
+    
+    return [
+        {
+            "task_id": task.task_id,
+            "filename": task.filename,
+            "text": task.result_text,
+            "language": task.language,
+            "duration": task.duration,
+            "processing_time": task.processing_time,
+            "completed_at": task.completed_at.isoformat() if task.completed_at else None
+        }
+        for task in tasks
+    ]
+
+
+@app.post("/api/rename/{task_id}")
+async def rename_task(task_id: str, payload: dict, db: Session = Depends(get_db)):
+    """Rename a transcription's filename in the DB."""
+    new_name = payload.get("new_name")
+    if not new_name:
+        raise HTTPException(status_code=400, detail="new_name is required")
+    task_store = crud.TaskStore(db)
+    task = task_store.rename_task(task_id, new_name)
+    if not task:
+        raise HTTPException(status_code=404, detail="Task not found")
+    return {"task_id": task.task_id, "filename": task.filename}
+
+
+@app.post("/api/history/clear")
+async def clear_history(db: Session = Depends(get_db)):
+    """Clear all completed transcription records."""
+    task_store = crud.TaskStore(db)
+    deleted = task_store.clear_history()
+    return {"deleted": deleted}
+
+
+@app.delete("/api/task/{task_id}")
+async def delete_task(task_id: str, db: Session = Depends(get_db)):
+    """Delete a single transcription task."""
+    task_store = crud.TaskStore(db)
+    if task_store.delete_task(task_id):
+        return {"deleted": True}
+    raise HTTPException(status_code=404, detail="Task not found")
 
 # Error handling
 @app.exception_handler(Exception)
