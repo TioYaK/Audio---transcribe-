@@ -469,3 +469,78 @@ tr:hover td {
     color: var(--text-main);
     font-family: inherit;
 }
+
+/* Reports Page */
+.stats-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+    gap: 24px;
+    margin-bottom: 32px;
+}
+
+.stat-card {
+    background: var(--bg-card);
+    border: 1px solid var(--border);
+    border-radius: 16px;
+    padding: 24px;
+    box-shadow: var(--shadow-sm);
+    display: flex;
+    flex-direction: column;
+    justify-content: space-between;
+    position: relative;
+    overflow: hidden;
+}
+
+.stat-card h3 {
+    margin: 0;
+    font-size: 0.9rem;
+    color: var(--text-muted);
+    font-weight: 500;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+}
+
+.stat-card p {
+    margin: 8px 0 0 0;
+    font-size: 2.5rem;
+    font-weight: 700;
+    color: var(--text-main);
+}
+
+.stat-card i {
+    position: absolute;
+    right: 24px;
+    top: 50%;
+    transform: translateY(-50%);
+    font-size: 3rem;
+    opacity: 0.1;
+    color: var(--text-main);
+}
+
+/* Card Specific Colors */
+.stat-card.proced i {
+    color: var(--success);
+    opacity: 0.2;
+}
+
+.stat-card.proced p {
+    color: var(--success);
+}
+
+.stat-card.improced i {
+    color: var(--danger);
+    opacity: 0.2;
+}
+
+.stat-card.improced p {
+    color: var(--danger);
+}
+
+.stat-card.pending i {
+    color: var(--warning);
+    opacity: 0.2;
+}
+
+.stat-card.pending p {
+    color: var(--warning);
+}

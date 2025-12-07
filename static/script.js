@@ -32,12 +32,14 @@ document.addEventListener('DOMContentLoaded', () => {
     if (logoutBtn) {
         logoutBtn.addEventListener('click', logout);
     }
-
     // Navigation Logic
     const adminLink = document.getElementById('admin-link');
     const dashboardLink = document.getElementById('dashboard-link');
+    const reportLink = document.getElementById('report-link');
+
     const dashboardView = document.getElementById('dashboard-view');
     const adminView = document.getElementById('admin-view');
+    const reportView = document.getElementById('report-view');
 
     function updateNav(target) {
         document.querySelectorAll('.nav-item').forEach(el => el.classList.remove('active'));
@@ -49,9 +51,93 @@ document.addEventListener('DOMContentLoaded', () => {
         updateNav(dashboardLink);
 
         adminView.classList.add('hidden');
+        reportView.classList.add('hidden');
         dashboardView.classList.remove('hidden');
 
-        loadHistory(); // Refresh history
+        loadHistory();
+    }
+
+    let reportsChart = null;
+    async function showReports(e) {
+        if (e) e.preventDefault();
+        updateNav(reportLink);
+
+        adminView.classList.add('hidden');
+        dashboardView.classList.add('hidden');
+        reportView.classList.remove('hidden');
+
+        await loadReports();
+    }
+
+    async function loadReports() {
+        try {
+            const res = await authFetch('/api/reports');
+            const data = await res.json();
+
+            // Populate Cards
+            document.getElementById('stat-total').textContent = data.total_completed;
+            document.getElementById('stat-proced').textContent = data.procedente;
+            document.getElementById('stat-improced').textContent = data.improcedente;
+            document.getElementById('stat-pending').textContent = data.pendente;
+
+            // Render Chart
+            const ctx = document.getElementById('reportsChart').getContext('2d');
+
+            if (reportsChart) {
+                reportsChart.destroy();
+            }
+
+            // Colors based on theme
+            const isDark = document.documentElement.getAttribute('data-theme') === 'dark';
+            const textColor = isDark ? '#94a3b8' : '#6b7280';
+
+            reportsChart = new Chart(ctx, {
+                type: 'bar',
+                data: {
+                    labels: ['Procedente', 'Improcedente', 'Pendente', 'Indefinido'],
+                    datasets: [{
+                        label: 'Transcrições',
+                        data: [data.procedente, data.improcedente, data.pendente, data.sem_conclusao],
+                        backgroundColor: [
+                            'rgba(16, 185, 129, 0.6)',
+                            'rgba(239, 68, 68, 0.6)',
+                            'rgba(245, 158, 11, 0.6)',
+                            'rgba(99, 102, 241, 0.6)'
+                        ],
+                        borderColor: [
+                            'rgba(16, 185, 129, 1)',
+                            'rgba(239, 68, 68, 1)',
+                            'rgba(245, 158, 11, 1)',
+                            'rgba(99, 102, 241, 1)'
+                        ],
+                        borderWidth: 1
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: {
+                        legend: { display: false },
+                        title: { display: true, text: 'Distribuição por Status', color: textColor }
+                    },
+                    scales: {
+                        y: {
+                            beginAtZero: true,
+                            ticks: { color: textColor },
+                            grid: { color: isDark ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.1)' }
+                        },
+                        x: {
+                            ticks: { color: textColor },
+                            grid: { display: false }
+                        }
+                    }
+                }
+            });
+
+        } catch (e) {
+            console.error(e);
+            alert('Erro ao carregar relatórios');
+        }
     }
 
     async function showAdminPanel(e) {
@@ -59,29 +145,34 @@ document.addEventListener('DOMContentLoaded', () => {
         updateNav(adminLink);
 
         dashboardView.classList.add('hidden');
+        reportView.classList.add('hidden');
         adminView.classList.remove('hidden');
 
-        adminView.innerHTML = `
-            <div class="header-bar">
-                <div class="page-title">
-                    <h1>Administração</h1>
-                    <p>Gerenciamento de usuários</p>
+        // Reuse existing struct or inject if empty
+        if (!document.getElementById('pending-users-list')) {
+            adminView.innerHTML = `
+                <div class="header-bar">
+                    <div class="page-title">
+                        <h1>Administração</h1>
+                        <p>Gerenciamento de usuários</p>
+                    </div>
                 </div>
-            </div>
-            
-            <div class="glass-card">
-                <h3>Usuários Pendentes</h3>
-                <div id="pending-users-list" style="margin-top:16px;">Carregando...</div>
                 
-                <h3 style="margin-top:32px;">Todos os Usuários</h3>
-                <div id="all-users-list" style="margin-top:16px;">Carregando...</div>
-            </div>
-        `;
+                <div class="glass-card">
+                    <h3>Usuários Pendentes</h3>
+                    <div id="pending-users-list" style="margin-top:16px;">Carregando...</div>
+                    
+                    <h3 style="margin-top:32px;">Todos os Usuários</h3>
+                    <div id="all-users-list" style="margin-top:16px;">Carregando...</div>
+                </div>
+            `;
+        }
 
         loadAdminUsers();
     }
 
     if (dashboardLink) dashboardLink.addEventListener('click', showDashboard);
+    if (reportLink) reportLink.addEventListener('click', showReports);
     if (isAdmin && adminLink) {
         adminLink.classList.remove('hidden');
         adminLink.addEventListener('click', showAdminPanel);
@@ -186,12 +277,15 @@ document.addEventListener('DOMContentLoaded', () => {
         try {
             const res = await authFetch('/api/upload', { method: 'POST', body: formData });
             const data = await res.json();
-            if (!res.ok) throw new Error(data.detail || 'Upload Failed');
+            if (!res.ok) throw new Error(data.detail || 'Falha no envio');
 
             pollStatus(data.task_id, item);
         } catch (err) {
-            item.querySelector('.progress-status').textContent = 'Error';
-            item.querySelector('.progress-status').style.color = 'var(--danger)';
+            const statusEl = item.querySelector('.progress-status');
+            statusEl.textContent = err.message;
+            statusEl.style.color = 'var(--danger)';
+            statusEl.style.fontSize = '0.75rem'; // Reduce size for longer messages
+            statusEl.title = err.message;
             console.error(err);
         }
     }
@@ -336,7 +430,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 });
             }
         } catch (err) {
-            console.error('History Load Error', err);
+            console.error('Erro ao carregar histórico', err);
         }
     }
 
@@ -376,7 +470,7 @@ document.addEventListener('DOMContentLoaded', () => {
     async function fetchDownload(id) {
         try {
             const res = await authFetch(`/api/download/${id}`);
-            if (!res.ok) throw new Error('Download failed');
+            if (!res.ok) throw new Error(data.detail || 'Falha no download');
             const blob = await res.blob();
             const url = window.URL.createObjectURL(blob);
             const a = document.createElement('a');

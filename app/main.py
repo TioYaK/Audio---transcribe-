@@ -98,11 +98,11 @@ async def login_for_access_token(form_data: OAuth2PasswordRequestForm = Depends(
     if not user or not auth.verify_password(form_data.password, user.hashed_password):
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Incorrect username or password",
+            detail="Usuário ou senha incorretos",
             headers={"WWW-Authenticate": "Bearer"},
         )
     if user.is_active != "True":
-        raise HTTPException(status_code=400, detail="Account pending approval")
+        raise HTTPException(status_code=400, detail="Conta aguardando aprovação")
         
     access_token_expires = timedelta(minutes=auth.ACCESS_TOKEN_EXPIRE_MINUTES)
     access_token = auth.create_access_token(
@@ -125,7 +125,7 @@ class RegisterModel(BaseModel):
 async def register(user: RegisterModel, db: Session = Depends(get_db)):
     existing = db.query(models.User).filter(models.User.username == user.username).first()
     if existing:
-        raise HTTPException(status_code=400, detail="Username already exists")
+        raise HTTPException(status_code=400, detail="Nome de usuário já existe")
     
     hashed = auth.get_password_hash(user.password)
     task_store = crud.TaskStore(db)
@@ -135,14 +135,14 @@ async def register(user: RegisterModel, db: Session = Depends(get_db)):
         full_name=user.full_name,
         email=user.email
     )
-    return {"message": "User created. Wait for admin approval."}
+    return {"message": "Usuário criado. Aguarde aprovação do administrador."}
 
 
 # Admin Endpoints
 @app.get("/api/admin/users")
 async def get_all_users(db: Session = Depends(get_db), current_user: models.User = Depends(auth.get_current_user)):
     if current_user.is_admin != "True":
-        raise HTTPException(status_code=403, detail="Admin only")
+        raise HTTPException(status_code=403, detail="Acesso exclusivo para administradores")
     task_store = crud.TaskStore(db)
     users = task_store.get_users()
     
@@ -165,51 +165,51 @@ async def get_all_users(db: Session = Depends(get_db), current_user: models.User
 @app.post("/api/admin/approve/{user_id}")
 async def approve_user(user_id: str, db: Session = Depends(get_db), current_user: models.User = Depends(auth.get_current_user)):
     if current_user.is_admin != "True":
-        raise HTTPException(status_code=403, detail="Admin only")
+        raise HTTPException(status_code=403, detail="Acesso exclusivo para administradores")
     task_store = crud.TaskStore(db)
     task_store.approve_user(user_id)
-    return {"message": "User approved"}
+    return {"message": "Usuário aprovado"}
 
 @app.post("/api/admin/user/{user_id}/password")
 async def admin_change_password(user_id: str, payload: dict, db: Session = Depends(get_db), current_user: models.User = Depends(auth.get_current_user)):
     if current_user.is_admin != "True":
-        raise HTTPException(status_code=403, detail="Admin only")
+        raise HTTPException(status_code=403, detail="Acesso exclusivo para administradores")
         
     new_password = payload.get("password")
     if not new_password or len(new_password) < 4:
-         raise HTTPException(status_code=400, detail="Password too short")
+         raise HTTPException(status_code=400, detail="Senha muito curta")
          
     hashed = auth.get_password_hash(new_password)
     task_store = crud.TaskStore(db)
     if task_store.update_user_password(user_id, hashed):
-        return {"message": "Password updated"}
-    raise HTTPException(status_code=404, detail="User not found")
+        return {"message": "Senha atualizada"}
+    raise HTTPException(status_code=404, detail="Usuário não encontrado")
 
 @app.post("/api/admin/user/{user_id}/limit")
 async def admin_set_limit(user_id: str, payload: dict, db: Session = Depends(get_db), current_user: models.User = Depends(auth.get_current_user)):
     if current_user.is_admin != "True":
-        raise HTTPException(status_code=403, detail="Admin only")
+        raise HTTPException(status_code=403, detail="Acesso exclusivo para administradores")
         
     limit = payload.get("limit")
     if limit is None or not isinstance(limit, int) or limit < 0:
-         raise HTTPException(status_code=400, detail="Invalid limit")
+         raise HTTPException(status_code=400, detail="Limite inválido")
          
     task_store = crud.TaskStore(db)
     if task_store.update_user_limit(user_id, limit):
-        return {"message": "Limit updated"}
-    raise HTTPException(status_code=404, detail="User not found")
+        return {"message": "Limite atualizado"}
+    raise HTTPException(status_code=404, detail="Usuário não encontrado")
 
 @app.delete("/api/admin/user/{user_id}")
 async def delete_user(user_id: str, db: Session = Depends(get_db), current_user: models.User = Depends(auth.get_current_user)):
     if current_user.is_admin != "True":
-        raise HTTPException(status_code=403, detail="Admin only")
+        raise HTTPException(status_code=403, detail="Acesso exclusivo para administradores")
     if user_id == current_user.id:
-         raise HTTPException(status_code=400, detail="Cannot delete your own admin account")
+         raise HTTPException(status_code=400, detail="Não é possível excluir sua própria conta de admin")
          
     task_store = crud.TaskStore(db)
     if task_store.delete_user(user_id):
-        return {"message": "User deleted"}
-    raise HTTPException(status_code=404, detail="User not found")
+        return {"message": "Usuário excluído"}
+    raise HTTPException(status_code=404, detail="Usuário não encontrado")
 
 
 def process_transcription(task_id: str, file_path: str):
@@ -259,7 +259,7 @@ async def upload_audio(
         usage = task_store.count_user_tasks(current_user.id)
         limit = current_user.transcription_limit if current_user.transcription_limit is not None else 10
         if usage >= limit:
-             raise HTTPException(status_code=403, detail=f"Transcription limit reached ({usage}/{limit}). Contact admin.")
+             raise HTTPException(status_code=403, detail=f"Limite de transcrições atingido ({usage}/{limit}). Contate o admin.")
 
     # 1. Validate file
     head = await file.read(2048)
@@ -284,7 +284,7 @@ async def upload_audio(
         with open(file_path, "wb") as buffer:
             shutil.copyfileobj(file.file, buffer)
     except Exception as e:
-         raise HTTPException(status_code=500, detail=f"Failed to save file: {str(e)}")
+         raise HTTPException(status_code=500, detail=f"Falha ao salvar arquivo: {str(e)}")
 
     # 3. Create task in DB
     task = task_store.create_task(
@@ -298,7 +298,7 @@ async def upload_audio(
     
     return {
         "task_id": task.task_id,
-        "message": "Upload successful",
+        "message": "Envio realizado com sucesso",
         "status_url": f"/api/status/{task.task_id}"
     }
 
@@ -307,11 +307,11 @@ async def get_status(task_id: str, db: Session = Depends(get_db), current_user: 
     task_store = crud.TaskStore(db)
     task = task_store.get_task(task_id)
     if not task:
-        raise HTTPException(status_code=404, detail="Task not found")
+        raise HTTPException(status_code=404, detail="Tarefa não encontrada")
     
     # Owner check
     if task.owner_id != current_user.id and current_user.is_admin != "True":
-         raise HTTPException(status_code=403, detail="Not authorized")
+         raise HTTPException(status_code=403, detail="Não autorizado")
 
     response = {
         "task_id": task.task_id,
@@ -339,10 +339,10 @@ async def get_result(task_id: str, db: Session = Depends(get_db), current_user: 
     task_store = crud.TaskStore(db)
     task = task_store.get_task(task_id)
     if not task:
-        raise HTTPException(status_code=404, detail="Task not found")
+        raise HTTPException(status_code=404, detail="Tarefa não encontrada")
         
     if task.owner_id != current_user.id and current_user.is_admin != "True":
-         raise HTTPException(status_code=403, detail="Not authorized")
+         raise HTTPException(status_code=403, detail="Não autorizado")
 
     return {
         "task_id": task.task_id,
@@ -359,10 +359,10 @@ async def download_result(task_id: str, db: Session = Depends(get_db), current_u
     task_store = crud.TaskStore(db)
     task = task_store.get_task(task_id)
     if not task:
-        raise HTTPException(status_code=404, detail="Task not found")
+        raise HTTPException(status_code=404, detail="Tarefa não encontrada")
         
     if task.owner_id != current_user.id and current_user.is_admin != "True":
-         raise HTTPException(status_code=403, detail="Not authorized")
+         raise HTTPException(status_code=403, detail="Não autorizado")
         
     filename = f"{os.path.splitext(task.filename)[0]}.txt"
     temp_path = os.path.join(UPLOAD_DIR, filename)
@@ -397,14 +397,14 @@ async def get_history(all: bool = False, db: Session = Depends(get_db), current_
 async def rename_task(task_id: str, payload: dict, db: Session = Depends(get_db), current_user: models.User = Depends(auth.get_current_user)):
     new_name = payload.get("new_name")
     if not new_name:
-        raise HTTPException(status_code=400, detail="new_name is required")
+        raise HTTPException(status_code=400, detail="Novo nome é obrigatório")
     
     task_store = crud.TaskStore(db)
     task = task_store.get_task(task_id)
     if not task:
-        raise HTTPException(status_code=404, detail="Task not found")
+        raise HTTPException(status_code=404, detail="Tarefa não encontrada")
     if task.owner_id != current_user.id and current_user.is_admin != "True":
-         raise HTTPException(status_code=403, detail="Not authorized")
+         raise HTTPException(status_code=403, detail="Não autorizado")
 
     task = task_store.rename_task(task_id, new_name)
     return {"task_id": task.task_id, "filename": task.filename}
@@ -414,17 +414,29 @@ async def rename_task(task_id: str, payload: dict, db: Session = Depends(get_db)
 async def update_task_analysis(task_id: str, payload: dict, db: Session = Depends(get_db), current_user: models.User = Depends(auth.get_current_user)):
     status = payload.get("status")
     if not status:
-        raise HTTPException(status_code=400, detail="status is required")
+        raise HTTPException(status_code=400, detail="Status é obrigatório")
     
     task_store = crud.TaskStore(db)
     task = task_store.get_task(task_id)
     if not task:
-        raise HTTPException(status_code=404, detail="Task not found")
+        raise HTTPException(status_code=404, detail="Tarefa não encontrada")
     if task.owner_id != current_user.id and current_user.is_admin != "True":
-         raise HTTPException(status_code=403, detail="Not authorized")
+         raise HTTPException(status_code=403, detail="Não autorizado")
 
     task = task_store.update_analysis_status(task_id, status)
     return {"task_id": task.task_id, "analysis_status": task.analysis_status}
+
+
+@app.get("/api/reports")
+async def get_reports(db: Session = Depends(get_db), current_user: models.User = Depends(auth.get_current_user)):
+    task_store = crud.TaskStore(db)
+    
+    # If admin, fetch global stats (owner_id=None)
+    # If user, fetch own stats
+    target_id = None if current_user.is_admin == "True" else current_user.id
+    
+    stats = task_store.get_stats(target_id)
+    return stats
 
 
 @app.post("/api/history/clear")
@@ -439,9 +451,9 @@ async def delete_task(task_id: str, db: Session = Depends(get_db), current_user:
     task_store = crud.TaskStore(db)
     task = task_store.get_task(task_id)
     if not task:
-        raise HTTPException(status_code=404, detail="Task not found")
+        raise HTTPException(status_code=404, detail="Tarefa não encontrada")
     if task.owner_id != current_user.id and current_user.is_admin != "True":
-         raise HTTPException(status_code=403, detail="Not authorized")
+         raise HTTPException(status_code=403, detail="Não autorizado")
 
     if task_store.delete_task(task_id):
         return {"deleted": True}
@@ -452,5 +464,5 @@ async def delete_task(task_id: str, db: Session = Depends(get_db), current_user:
 async def global_exception_handler(request, exc):
     return JSONResponse(
         status_code=500,
-        content={"message": "Internal Server Error", "detail": str(exc)},
+        content={"message": "Erro Interno do Servidor", "detail": str(exc)},
     )

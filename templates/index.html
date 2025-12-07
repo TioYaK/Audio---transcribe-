@@ -7,6 +7,7 @@
     <title>Audio Transcription Pro</title>
     <!-- Use Phosphor Icons for that futuristic look -->
     <script src="https://unpkg.com/@phosphor-icons/web"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <link rel="stylesheet" href="/static/style.css">
 </head>
 
@@ -23,6 +24,10 @@
                 <a href="#" class="nav-item active" id="dashboard-link">
                     <i class="ph ph-squares-four"></i>
                     <span>Dashboard</span>
+                </a>
+                <a href="#" class="nav-item" id="report-link">
+                    <i class="ph ph-chart-pie-slice"></i>
+                    <span>Relatórios</span>
                 </a>
                 <a href="#" class="nav-item hidden" id="admin-link">
                     <i class="ph ph-shield-check"></i>
@@ -44,6 +49,7 @@
 
         <!-- Main Content -->
         <main class="main-content">
+            <!-- DASHBOARD VIEW -->
             <div id="dashboard-view">
                 <div class="header-bar">
                     <div class="page-title">
@@ -108,6 +114,45 @@
                 </div>
             </div>
 
+            <!-- REPORTS VIEW -->
+            <div id="report-view" class="hidden">
+                <div class="header-bar">
+                    <div class="page-title">
+                        <h1>Relatórios</h1>
+                        <p>Visão geral de desempenho</p>
+                    </div>
+                </div>
+
+                <div class="stats-grid">
+                    <div class="stat-card">
+                        <h3>Total Arquivos</h3>
+                        <p id="stat-total">-</p>
+                        <i class="ph ph-files"></i>
+                    </div>
+                    <div class="stat-card proced">
+                        <h3>Procedente</h3>
+                        <p id="stat-proced">-</p>
+                        <i class="ph ph-check-circle"></i>
+                    </div>
+                    <div class="stat-card improced">
+                        <h3>Improcedente</h3>
+                        <p id="stat-improced">-</p>
+                        <i class="ph ph-x-circle"></i>
+                    </div>
+                    <div class="stat-card pending">
+                        <h3>Pendente</h3>
+                        <p id="stat-pending">-</p>
+                        <i class="ph ph-hourglass"></i>
+                    </div>
+                </div>
+
+                <div class="glass-card"
+                    style="margin-top:24px; height: 400px; display:flex; justify-content:center; align-items:center; position:relative;">
+                    <canvas id="reportsChart"></canvas>
+                </div>
+            </div>
+
+            <!-- ADMIN VIEW -->
             <div id="admin-view" class="hidden">
                 <!-- Admin Panel Injected Here -->
             </div>

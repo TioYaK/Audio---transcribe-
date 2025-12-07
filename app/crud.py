@@ -160,3 +160,47 @@ class TaskStore:
             t_dict["owner_name"] = full_name or username or "Desconhecido"
             tasks_data.append(t_dict)
         return tasks_data
+
+    def get_stats(self, owner_id: str = None):
+        """Aggregate stats for reports. If owner_id is None, aggregates all."""
+        from sqlalchemy import func
+        
+        query = self.db.query(
+            models.TranscriptionTask.analysis_status,
+            func.count(models.TranscriptionTask.task_id)
+        )
+        
+        # Filter if user
+        if owner_id:
+            query = query.filter(models.TranscriptionTask.owner_id == owner_id)
+            
+        # Group by status
+        results = query.group_by(models.TranscriptionTask.analysis_status).all()
+        
+        # Get total count (completed)
+        total_query = self.db.query(models.TranscriptionTask).filter(models.TranscriptionTask.status == "completed")
+        if owner_id:
+            total_query = total_query.filter(models.TranscriptionTask.owner_id == owner_id)
+        total_count = total_query.count()
+        
+        # Process into clean dict
+        stats = {
+            "total_completed": total_count,
+            "procedente": 0,
+            "improcedente": 0,
+            "pendente": 0,
+            "sem_conclusao": 0
+        }
+        
+        for status, count in results:
+            s_lower = (status or "").lower()
+            if "procedente" in s_lower and "improcedente" not in s_lower:
+                stats["procedente"] += count
+            elif "improcedente" in s_lower:
+                stats["improcedente"] += count
+            elif "pendente" in s_lower:
+                stats["pendente"] += count
+            elif "indefinido" in s_lower or "sem conclusão" in s_lower:
+                stats["sem_conclusao"] += count
+                
+        return stats
