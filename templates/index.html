@@ -4,111 +4,133 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Serviço de Transcrição de Áudio</title>
+    <title>Audio Transcription Pro</title>
+    <!-- Use Phosphor Icons for that futuristic look -->
+    <script src="https://unpkg.com/@phosphor-icons/web"></script>
     <link rel="stylesheet" href="/static/style.css">
-    <!-- Google Fonts -->
-    <link rel="preconnect" href="https://fonts.googleapis.com">
-    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;700&display=swap" rel="stylesheet">
 </head>
 
 <body>
-    <div class="main-container">
-        <!-- Header -->
-        <header class="header">
-            <div class="header-title-group">
-                <h1>Transcrição de Áudio</h1>
-                <div class="subtitle">Converta áudio em texto localmente com o modelo Whisper</div>
-            </div>
-            <button id="btn-open-upload">+ Enviar áudio</button>
-        </header>
-
-        <!-- Error Message -->
-        <div id="error-message" class="error-message" style="display:none"></div>
-
-        <!-- Main Dashboard -->
-        <div id="dashboard" class="dashboard">
-            <!-- Status / In-progress above history -->
-            <div id="status-section" class="status-section" style="display:none">
-                <div class="status-card panel">
-                    <div class="status-info">
-                        <div class="spinner"></div>
-                        <span id="status-text" class="status-text">Processando...</span>
-                    </div>
-                    <div class="progress-container main-progress" style="display:none">
-                        <div class="progress-bar">
-                            <div class="progress-fill" id="progress-fill"></div>
-                        </div>
-                        <div class="progress-text">
-                            <span id="progress-label">Preparando...</span>
-                        </div>
-                    </div>
-
-                    <!-- Lista de uploads em progresso (suporta vários) -->
-                    <div id="inprogress-list" class="inprogress-list"></div>
-                </div>
+    <div class="app-container">
+        <!-- Sidebar -->
+        <aside class="sidebar">
+            <div class="logo-area">
+                <i class="ph-fill ph-wave-sine" style="font-size: 1.5rem;"></i>
+                <span>Transcribe.ai</span>
             </div>
 
-            <!-- History full-width -->
-            <div class="panel history-panel large-history">
-                <div class="history-header"
-                    style="display:flex;justify-content:space-between;align-items:center;gap:10px;">
-                    <h2 style="margin:0">Histórico de Transcrições</h2>
+            <nav class="nav-links">
+                <a href="#" class="nav-item active">
+                    <i class="ph ph-squares-four"></i>
+                    <span>Dashboard</span>
+                </a>
+                <a href="#" class="nav-item">
+                    <i class="ph ph-folder-open"></i>
+                    <span>Arquivos</span>
+                </a>
+                <a href="#" class="nav-item">
+                    <i class="ph ph-chart-bar"></i>
+                    <span>Analytics</span>
+                </a>
+            </nav>
+
+            <div class="sidebar-footer">
+                <div class="theme-toggle" id="theme-toggle">
                     <div style="display:flex;align-items:center;gap:8px">
-                        <button id="btn-clear-history" class="btn btn-secondary">Limpar Histórico</button>
-                        <div id="clear-confirm" style="display:none;align-items:center;gap:8px">
-                            <span style="color:var(--muted);font-size:0.95rem">Confirmar limpeza?</span>
-                            <button id="btn-confirm-clear" class="btn btn-primary">Confirmar</button>
-                            <button id="btn-cancel-clear" class="btn btn-secondary">Cancelar</button>
-                        </div>
+                        <i class="ph ph-moon" id="theme-icon"></i>
+                        <span class="toggle-label">Modo Escuro</span>
+                    </div>
+                    <div style="font-size:0.8rem;color:var(--text-muted)">v2.0</div>
+                </div>
+            </div>
+        </aside>
+
+        <!-- Main Content -->
+        <main class="main-content">
+            <div class="header-bar">
+                <div class="page-title">
+                    <h1>Dashboard</h1>
+                    <p>Gerencie suas transcrições de áudio</p>
+                </div>
+                <div class="user-profile">
+                    <!-- Placeholder for user avatar if needed, otherwise empty or stats -->
+                </div>
+            </div>
+
+            <!-- Upload Section -->
+            <div class="glass-card">
+                <div class="upload-zone" id="upload-zone">
+                    <i class="ph ph-cloud-arrow-up upload-icon-large"></i>
+                    <h3>Arraste e solte seus arquivos</h3>
+                    <p style="color:var(--text-muted); margin-bottom: 20px;">Ou clique para selecionar (MP3, WAV,
+                        M4A...)</p>
+                    <button class="btn-upload-trigger">Selecionar Arquivos</button>
+                    <input type="file" id="file-input" multiple hidden
+                        accept=".mp3,.wav,.m4a,.ogg,.webm,.flac,.opus,.ptt">
+                </div>
+
+                <!-- Live Progress List -->
+                <div id="status-section" class="status-section hidden">
+                    <h4 style="margin:0 0 12px 0;">Enviando...</h4>
+                    <div id="inprogress-list">
+                        <!-- Progress Items injected here -->
                     </div>
                 </div>
-                <div id="history-container" class="history-container">
-                    <div id="history-list"></div>
+            </div>
+
+            <!-- History Section -->
+            <div class="glass-card" style="padding:0; overflow:hidden;">
+                <div
+                    style="padding: 24px; border-bottom: 1px solid var(--border); display:flex; justify-content:space-between; align-items:center;">
+                    <h3 style="margin:0;">Histórico Recente</h3>
+                    <button class="action-btn" id="btn-clear-history" title="Limpar Histórico">
+                        <i class="ph ph-trash"></i>
+                    </button>
+                </div>
+
+                <div class="table-container">
+                    <table id="history-table">
+                        <thead>
+                            <tr>
+                                <th>Arquivo</th>
+                                <th>Data</th>
+                                <th>Duração</th>
+                                <th>Status Análise</th>
+                                <th>Ações</th>
+                            </tr>
+                        </thead>
+                        <tbody id="history-body">
+                            <!-- Items injected here -->
+                        </tbody>
+                    </table>
+                </div>
+                <!-- Empty State -->
+                <div id="empty-state" class="hidden" style="padding:40px; text-align:center; color:var(--text-muted);">
+                    <i class="ph ph-ghost" style="font-size:2rem; margin-bottom:8px;"></i>
+                    <p>Nenhuma transcrição encontrada.</p>
                 </div>
             </div>
-        </div>
-
-        <!-- Result View (Modal/Overlay) -->
-        <div id="result-section" class="result-section">
-            <div class="result-container">
-                <div class="result-header">
-                    <h2>Resultado da Transcrição</h2>
-                    <button id="btn-close-result" class="btn-close">&times;</button>
-                </div>
-
-                <div id="result-meta" class="result-meta"></div>
-
-                <textarea id="result-text" class="result-box" readonly></textarea>
-
-                <div class="btn-group">
-                    <button id="btn-download" class="btn btn-primary">Baixar .txt</button>
-                    <button id="btn-copy" class="btn btn-secondary">Copiar texto</button>
-                    <button id="btn-close-result-bottom" class="btn btn-secondary">Voltar</button>
-                </div>
-            </div>
-        </div>
+        </main>
     </div>
 
-    <!-- Upload Modal -->
-    <div id="upload-modal" class="upload-modal" style="display:none">
-        <div class="upload-modal-content">
-            <div class="upload-modal-header">
-                <h2>Enviar Arquivos de Áudio</h2>
-                <button id="btn-close-upload" class="btn-close">&times;</button>
+    <!-- Result Modal -->
+    <div class="modal-overlay" id="result-modal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h2>Detalhes da Transcrição</h2>
+                <button class="action-btn" id="btn-close-modal"><i class="ph ph-x"
+                        style="font-size:1.2rem;"></i></button>
             </div>
-            <div class="upload-modal-body">
-                <div id="upload-area" class="upload-area">
-                    <svg class="upload-icon" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24"
-                        stroke="currentColor">
-                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
-                            d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12" />
-                    </svg>
-                    <div class="upload-text">Clique ou arraste o arquivo para esta área para enviar</div>
-                    <div class="upload-subtext">Suporta MP3, WAV, M4A, OGG, WEBM, FLAC, OPUS, PTT (Máx 100MB) —
-                        selecione vários arquivos</div>
-                    <input type="file" id="file-input" accept=".mp3,.wav,.m4a,.ogg,.webm,.flac,.opus,.ptt" multiple>
-                </div>
+            <div id="result-meta" style="margin-bottom:16px; color:var(--text-muted); font-size:0.9rem;"></div>
+            <textarea id="result-text" class="result-textarea" readonly></textarea>
+
+            <div style="display:flex; justify-content:flex-end; gap:12px;">
+                <button class="action-btn" id="btn-copy-text" style="border:1px solid var(--border);">
+                    <i class="ph ph-copy"></i> Copiar
+                </button>
+                <button class="btn-upload-trigger" id="btn-download-text" style="margin:0; font-size:0.9rem;">
+                    Baixar Arquivo
+                </button>
             </div>
         </div>
     </div>
