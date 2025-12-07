@@ -16,11 +16,11 @@
     <div class="main-container">
         <!-- Header -->
         <header class="header">
-            <div style="display:flex;flex-direction:column">
+            <div class="header-title-group">
                 <h1>Transcrição de Áudio</h1>
                 <div class="subtitle">Converta áudio em texto localmente com o modelo Whisper</div>
             </div>
-            <button id="btn-open-upload" class="btn btn-primary" style="padding:14px 22px;border-radius:8px;white-space:nowrap;font-size:1.1rem;font-weight:700;background:#2563eb;color:#fff;border:none">+ Enviar áudio</button>
+            <button id="btn-open-upload">+ Enviar áudio</button>
         </header>
 
         <!-- Error Message -->
@@ -51,7 +51,8 @@
 
             <!-- History full-width -->
             <div class="panel history-panel large-history">
-                <div class="history-header" style="display:flex;justify-content:space-between;align-items:center;gap:10px;">
+                <div class="history-header"
+                    style="display:flex;justify-content:space-between;align-items:center;gap:10px;">
                     <h2 style="margin:0">Histórico de Transcrições</h2>
                     <div style="display:flex;align-items:center;gap:8px">
                         <button id="btn-clear-history" class="btn btn-secondary">Limpar Histórico</button>
@@ -62,7 +63,9 @@
                         </div>
                     </div>
                 </div>
-                <div id="history-list" class="history-list"></div>
+                <div id="history-container" class="history-container">
+                    <div id="history-list"></div>
+                </div>
             </div>
         </div>
 
@@ -96,11 +99,14 @@
             </div>
             <div class="upload-modal-body">
                 <div id="upload-area" class="upload-area">
-                    <svg class="upload-icon" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12" />
+                    <svg class="upload-icon" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24"
+                        stroke="currentColor">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                            d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12" />
                     </svg>
                     <div class="upload-text">Clique ou arraste o arquivo para esta área para enviar</div>
-                    <div class="upload-subtext">Suporta MP3, WAV, M4A, OGG, WEBM, FLAC, OPUS, PTT (Máx 100MB) — selecione vários arquivos</div>
+                    <div class="upload-subtext">Suporta MP3, WAV, M4A, OGG, WEBM, FLAC, OPUS, PTT (Máx 100MB) —
+                        selecione vários arquivos</div>
                     <input type="file" id="file-input" accept=".mp3,.wav,.m4a,.ogg,.webm,.flac,.opus,.ptt" multiple>
                 </div>
             </div>

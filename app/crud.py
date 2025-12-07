@@ -32,6 +32,16 @@ class TaskStore:
                 task.error_message = error_message
             self.db.commit()
             self.db.refresh(task)
+            self.db.commit()
+            self.db.refresh(task)
+        return task
+
+    def update_analysis_status(self, task_id: str, status: str) -> Optional[TranscriptionTask]:
+        task = self.get_task(task_id)
+        if task:
+            task.analysis_status = status
+            self.db.commit()
+            self.db.refresh(task)
         return task
 
     def save_result(self, task_id: str, text: str, language: str, duration: float, processing_time: float = None) -> Optional[TranscriptionTask]:

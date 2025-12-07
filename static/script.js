@@ -1,72 +1,64 @@
-document.addEventListener('DOMContentLoaded', async () => {
-    // DOM Elements
-    const uploadModal = document.getElementById('upload-modal');
-    const btnOpenUpload = document.getElementById('btn-open-upload');
-    const btnCloseUpload = document.getElementById('btn-close-upload');
-    const uploadArea = document.getElementById('upload-area');
+document.addEventListener('DOMContentLoaded', () => {
     const fileInput = document.getElementById('file-input');
-    const errorMessage = document.getElementById('error-message');
+    const uploadArea = document.getElementById('upload-area');
+    const btnOpenUpload = document.getElementById('btn-open-upload');
     const statusSection = document.getElementById('status-section');
     const statusText = document.getElementById('status-text');
     const progressFill = document.getElementById('progress-fill');
     const progressLabel = document.getElementById('progress-label');
     const historyList = document.getElementById('history-list');
+    const errorMessage = document.getElementById('error-message');
     const resultSection = document.getElementById('result-section');
     const resultText = document.getElementById('result-text');
     const resultMeta = document.getElementById('result-meta');
-    const btnDownload = document.getElementById('btn-download');
     const btnCopy = document.getElementById('btn-copy');
+    const btnDownload = document.getElementById('btn-download');
     const btnCloseResult = document.getElementById('btn-close-result');
     const btnCloseResultBottom = document.getElementById('btn-close-result-bottom');
+    const uploadModal = document.getElementById('upload-modal');
+    const btnCloseUpload = document.getElementById('btn-close-upload');
 
-    // Modal handlers
-    if (btnOpenUpload) {
-        btnOpenUpload.addEventListener('click', () => {
-            uploadModal.style.display = 'block';
-        });
-    }
-    if (btnCloseUpload) {
-        btnCloseUpload.addEventListener('click', () => {
-            uploadModal.style.display = 'none';
-        });
-    }
-    uploadModal.addEventListener('click', (e) => {
-        if (e.target === uploadModal) {
-            uploadModal.style.display = 'none';
+    // Initial Load
+    loadHistory();
+
+    // Event Listeners
+    btnOpenUpload.addEventListener('click', () => {
+        uploadModal.style.display = 'block';
+    });
+
+    btnCloseUpload.addEventListener('click', () => {
+        uploadModal.style.display = 'none';
+    });
+
+    window.onclick = (event) => {
+        if (event.target == uploadModal) {
+            uploadModal.style.display = "none";
         }
-    });
+    };
 
-    // Load history on page load
-    await loadHistory();
+    uploadArea.addEventListener('click', () => fileInput.click());
 
-    // Upload Handlers
-    ['dragenter', 'dragover', 'dragleave', 'drop'].forEach(eventName => {
-        uploadArea.addEventListener(eventName, preventDefaults, false);
-    });
-
-    function preventDefaults(e) {
+    uploadArea.addEventListener('dragover', (e) => {
         e.preventDefault();
-        e.stopPropagation();
-    }
-
-    ['dragenter', 'dragover'].forEach(eventName => {
-        uploadArea.addEventListener(eventName, () => uploadArea.classList.add('dragover'), false);
+        uploadArea.classList.add('dragover');
     });
 
-    ['dragleave', 'drop'].forEach(eventName => {
-        uploadArea.addEventListener(eventName, () => uploadArea.classList.remove('dragover'), false);
+    uploadArea.addEventListener('dragleave', () => {
+        uploadArea.classList.remove('dragover');
     });
 
     uploadArea.addEventListener('drop', (e) => {
-        const files = e.dataTransfer.files;
-        if (files.length) {
-            Array.from(files).forEach(file => uploadFile(file));
+        e.preventDefault();
+        uploadArea.classList.remove('dragover');
+        if (e.dataTransfer.files.length) {
+            uploadModal.style.display = 'none';
+            Array.from(e.dataTransfer.files).forEach(file => uploadFile(file));
         }
-    }, false);
+    });
 
-    uploadArea.addEventListener('click', () => fileInput.click());
     fileInput.addEventListener('change', (e) => {
         if (e.target.files.length) {
+            uploadModal.style.display = 'none';
             Array.from(e.target.files).forEach(file => uploadFile(file));
         }
     });
@@ -121,7 +113,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     }
 
     function escapeHtml(text) {
-        return text.replace(/[&<>"']/g, function (m) { return ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":"&#39;"})[m]; });
+        return text.replace(/[&<>"']/g, function (m) { return ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": "&#39;" })[m]; });
     }
 
     // Poll Status
@@ -144,34 +136,59 @@ document.addEventListener('DOMContentLoaded', async () => {
                     const progress = data.progress || 0;
                     if (uiItem) {
                         const fill = uiItem.querySelector('.progress-fill');
-                        fill.style.width = progress + '%';
-                        uiItem.querySelector('.inprogress-status').textContent = `Processando: ${progress}%`;
+                        if (fill) fill.style.width = progress + '%';
+                        const statusEl = uiItem.querySelector('.inprogress-status');
+                        if (statusEl) statusEl.textContent = `Processando: ${progress}%`;
                     } else {
                         updateProgress(progress, `Processando: ${progress}%`);
                     }
                 } else if (data.status === 'completed') {
                     clearInterval(intervalId);
                     if (uiItem) {
-                        uiItem.querySelector('.progress-fill').style.width = '100%';
-                        uiItem.querySelector('.inprogress-status').textContent = 'Concluído';
-                        setTimeout(() => { uiItem.remove(); loadHistory(); showResult(taskId); }, 600);
+                        const fill = uiItem.querySelector('.progress-fill');
+                        if (fill) fill.style.width = '100%';
+                        const statusEl = uiItem.querySelector('.inprogress-status');
+                        if (statusEl) statusEl.textContent = 'Concluído';
+
+                        setTimeout(() => {
+                            uiItem.remove();
+                            checkStatusVisibility();
+                            loadHistory();
+                            // showResult(taskId); // Auto-open disabled
+                        }, 600);
                     } else {
                         updateProgress(100, 'Concluído!');
-                        setTimeout(() => { document.querySelector('.main-progress').style.display = 'none'; statusSection.style.display = 'none'; loadHistory(); showResult(taskId); }, 500);
+                        setTimeout(() => {
+                            document.querySelector('.main-progress').style.display = 'none';
+                            statusSection.style.display = 'none';
+                            loadHistory();
+                            // showResult(taskId); // Auto-open disabled
+                        }, 500);
                     }
                 } else if (data.status === 'failed') {
                     clearInterval(intervalId);
                     if (uiItem) {
-                        uiItem.querySelector('.inprogress-status').textContent = 'Falhou';
-                        uiItem.querySelector('.inprogress-status').style.color = '#ef4444';
+                        const statusEl = uiItem.querySelector('.inprogress-status');
+                        if (statusEl) {
+                            statusEl.textContent = 'Falhou';
+                            statusEl.style.color = '#ef4444';
+                        }
                     }
                     showError(data.error || 'Transcrição falhou');
+                    checkStatusVisibility();
                 }
             } catch (error) {
                 clearInterval(intervalId);
                 showError('Erro de rede ao verificar status');
             }
         }, 1000);
+    }
+
+    function checkStatusVisibility() {
+        const list = document.getElementById('inprogress-list');
+        if (list && list.children.length === 0) {
+            statusSection.style.display = 'none';
+        }
     }
 
     function updateProgress(percentage, label) {
@@ -241,143 +258,182 @@ document.addEventListener('DOMContentLoaded', async () => {
                 return;
             }
 
+            // Create Table Structure
+            const table = document.createElement('table');
+            table.className = 'history-table';
+            table.innerHTML = `
+                <thead>
+                    <tr>
+                        <th style="width: 30%">Nome do Arquivo</th>
+                        <th style="width: 15%">Data</th>
+                        <th style="width: 10%">Duração</th>
+                        <th style="width: 20%">Status Análise</th>
+                        <th style="width: 25%">Ações</th>
+                    </tr>
+                </thead>
+                <tbody id="history-table-body"></tbody>
+            `;
+            const tbody = table.querySelector('tbody');
             tasks.forEach(task => {
-                const item = document.createElement('div');
-                item.className = 'history-item';
-                const preview = task.text.substring(0, 100).replace(/\n/g, ' ');
+                const tr = document.createElement('tr');
                 const date = new Date(task.completed_at).toLocaleString('pt-BR');
-                
-                item.innerHTML = `
-                        <div style="display:flex;justify-content:space-between;align-items:center">
-                            <div class="history-filename-wrapper" style="display:flex;align-items:center;gap:8px;">
-                                <div class="history-item-filename">${escapeHtml(task.filename)}</div>
-                                <input class="history-item-input" style="display:none;padding:6px;border-radius:6px;border:1px solid var(--border);min-width:200px" value="${escapeHtml(task.filename)}" />
-                            </div>
-                            <div style="display:flex;gap:8px">
-                                <button class="btn btn-secondary btn-edit" data-task-id="${task.task_id}">Editar</button>
-                                <button class="btn btn-primary btn-save" data-task-id="${task.task_id}" style="display:none">Salvar</button>
-                                <button class="btn btn-secondary btn-cancel" data-task-id="${task.task_id}" style="display:none">Cancelar</button>
-                                <button class="btn btn-secondary btn-delete" data-task-id="${task.task_id}" style="background:#fee2e2;color:#dc2626">Deletar</button>
-                            </div>
+                const analysisStatus = task.analysis_status || 'Pendente de análise';
+
+                // Determine styling based on status
+                let statusColor = '#64748b'; // default gray
+                if (analysisStatus === 'Procedente') statusColor = '#16a34a'; // green
+                if (analysisStatus === 'Improcedente') statusColor = '#dc2626'; // red
+                if (analysisStatus === 'Sem conclusão') statusColor = '#ea580c'; // orange
+
+                tr.innerHTML = `
+                    <td>
+                        <div class="history-filename" id="filename-${task.task_id}" onclick="showHistoryDetail(${escapeHtml(JSON.stringify(task))})">
+                            ${escapeHtml(task.filename)}
                         </div>
-                        <div class="history-item-preview">${escapeHtml(preview)}${task.text.length > 100 ? '...' : ''}</div>
-                        <div class="history-item-meta">Duração: ${task.duration.toFixed(2)}s | ${date}</div>
-                    `;
+                        <div class="history-input-wrapper" id="input-wrapper-${task.task_id}" style="display:none">
+                            <input type="text" class="history-name-input" id="input-${task.task_id}" value="${escapeHtml(task.filename)}" />
+                            <button class="action-btn" onclick="saveRename('${task.task_id}')">
+                                <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="none" viewBox="0 0 24 24" stroke="currentColor" style="color:var(--primary)">
+                                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7" />
+                                </svg>
+                            </button>
+                            <button class="action-btn" onclick="cancelRename('${task.task_id}')">
+                                <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="none" viewBox="0 0 24 24" stroke="currentColor" style="color:var(--danger)">
+                                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
+                                </svg>
+                            </button>
+                        </div>
+                    </td>
+                    <td>${date}</td>
+                    <td>${task.duration ? task.duration.toFixed(2) + 's' : '-'}</td>
+                    <td>
+                        <select 
+                            class="status-select" 
+                            style="color:${statusColor};border-color:${statusColor}" 
+                            onchange="changeAnalysisStatus('${task.task_id}', this)"
+                        >
+                            <option value="Pendente de análise" ${analysisStatus === 'Pendente de análise' ? 'selected' : ''}>Pendente de análise</option>
+                            <option value="Procedente" ${analysisStatus === 'Procedente' ? 'selected' : ''}>Procedente</option>
+                            <option value="Improcedente" ${analysisStatus === 'Improcedente' ? 'selected' : ''}>Improcedente</option>
+                            <option value="Sem conclusão" ${analysisStatus === 'Sem conclusão' ? 'selected' : ''}>Sem conclusão</option>
+                        </select>
+                    </td>
+                    <td>
+                        <div class="history-actions">
+                            <button class="action-btn" title="Renomear" onclick="startRename('${task.task_id}')">
+                                <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+                                </svg>
+                            </button>
+                            <button class="action-btn" title="Ver Detalhes" onclick="showHistoryDetail(${escapeHtml(JSON.stringify(task))})">
+                                <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+                                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
+                                </svg>
+                            </button>
+                            <button class="action-btn delete" title="Deletar" onclick="deleteTask('${task.task_id}')">
+                                <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                                </svg>
+                            </button>
+                            <button class="action-btn" title="Baixar" onclick="window.location.href='/api/download/${task.task_id}'">
+                                <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
+                                </svg>
+                            </button>
+                        </div>
+                    </td>
+                `;
+                tbody.appendChild(tr);
+            });
 
-                    // Open detail when clicking item except on buttons
-                    item.addEventListener('click', (e) => {
-                        if (e.target && e.target.closest && e.target.closest('.btn-edit')) return;
-                        if (e.target && e.target.closest && e.target.closest('.btn-save')) return;
-                        if (e.target && e.target.closest && e.target.closest('.btn-cancel')) return;
-                        if (e.target && e.target.closest && e.target.closest('.btn-delete')) return;
-                        if (e.target && e.target.classList && e.target.classList.contains('history-item-input')) return;
-                        showHistoryDetail(task);
-                    });
+            historyList.appendChild(table);
 
-                    historyList.appendChild(item);
-                });
-
-                // Attach inline edit handlers (edit/save/cancel)
-                document.querySelectorAll('.btn-edit').forEach(btn => {
-                    btn.addEventListener('click', (e) => {
-                        const container = btn.closest('.history-item');
-                        const filenameEl = container.querySelector('.history-item-filename');
-                        const inputEl = container.querySelector('.history-item-input');
-                        const saveBtn = container.querySelector('.btn-save');
-                        const cancelBtn = container.querySelector('.btn-cancel');
-
-                        // Toggle UI
-                        filenameEl.style.display = 'none';
-                        inputEl.style.display = 'inline-block';
-                        btn.style.display = 'none';
-                        saveBtn.style.display = 'inline-block';
-                        cancelBtn.style.display = 'inline-block';
-                        inputEl.focus();
-                    });
-                });
-
-                document.querySelectorAll('.btn-cancel').forEach(btn => {
-                    btn.addEventListener('click', (e) => {
-                        const container = btn.closest('.history-item');
-                        const filenameEl = container.querySelector('.history-item-filename');
-                        const inputEl = container.querySelector('.history-item-input');
-                        const editBtn = container.querySelector('.btn-edit');
-                        const saveBtn = container.querySelector('.btn-save');
-
-                        // Revert UI
-                        inputEl.value = filenameEl.textContent;
-                        inputEl.style.display = 'none';
-                        filenameEl.style.display = 'block';
-                        btn.style.display = 'none';
-                        saveBtn.style.display = 'none';
-                        editBtn.style.display = 'inline-block';
-                    });
-                });
-
-                document.querySelectorAll('.btn-save').forEach(btn => {
-                    btn.addEventListener('click', async (e) => {
-                        const container = btn.closest('.history-item');
-                        const inputEl = container.querySelector('.history-item-input');
-                        const newName = inputEl.value.trim();
-                        if (!newName) { showError('Nome não pode ficar vazio'); return; }
-                        const id = btn.getAttribute('data-task-id');
-                        try {
-                            const resp = await fetch(`/api/rename/${id}`, {
-                                method: 'POST',
-                                headers: { 'Content-Type': 'application/json' },
-                                body: JSON.stringify({ new_name: newName })
-                            });
-                            if (!resp.ok) throw new Error('Falha ao renomear');
-                            // Update UI inline
-                            const filenameEl = container.querySelector('.history-item-filename');
-                            const editBtn = container.querySelector('.btn-edit');
-                            const cancelBtn = container.querySelector('.btn-cancel');
-                            filenameEl.textContent = newName;
-                            inputEl.style.display = 'none';
-                            filenameEl.style.display = 'block';
-                            btn.style.display = 'none';
-                            cancelBtn.style.display = 'none';
-                            editBtn.style.display = 'inline-block';
-                        } catch (err) {
-                            showError('Erro ao renomear: ' + err.message);
-                        }
-                    });
-                });
-
-                // Delete handlers
-                document.querySelectorAll('.btn-delete').forEach(btn => {
-                    btn.addEventListener('click', async (e) => {
-                        const id = btn.getAttribute('data-task-id');
-                        const container = btn.closest('.history-item');
-                        try {
-                            const resp = await fetch(`/api/task/${id}`, { method: 'DELETE' });
-                            if (!resp.ok) throw new Error('Falha ao deletar');
-                            container.remove();
-                            await loadHistory();
-                        } catch (err) {
-                            showError('Erro ao deletar: ' + err.message);
-                        }
-                    });
-                });
         } catch (error) {
             historyList.innerHTML = '<div class="empty-history" style="color: #ef4444;">Erro ao carregar histórico</div>';
         }
     }
+
+    // Expose functions & Inline Rename Logic
+    window.showHistoryDetail = showHistoryDetail;
+    window.deleteTask = async (id) => {
+        if (!confirm('Tem certeza que deseja deletar esta transcrição?')) return;
+        try {
+            const resp = await fetch(`/api/task/${id}`, { method: 'DELETE' });
+            if (!resp.ok) throw new Error('Falha ao deletar');
+            await loadHistory();
+        } catch (err) {
+            showError('Erro ao deletar: ' + err.message);
+        }
+    };
+
+    window.startRename = (id) => {
+        document.getElementById(`filename-${id}`).style.display = 'none';
+        const wrapper = document.getElementById(`input-wrapper-${id}`);
+        wrapper.style.display = 'flex';
+        const input = document.getElementById(`input-${id}`);
+        input.focus();
+
+        // Handle Enter key
+        input.onkeydown = (e) => {
+            if (e.key === 'Enter') saveRename(id);
+            if (e.key === 'Escape') cancelRename(id);
+        };
+    };
+
+    window.cancelRename = (id) => {
+        document.getElementById(`filename-${id}`).style.display = 'block';
+        document.getElementById(`input-wrapper-${id}`).style.display = 'none';
+    };
+
+    window.saveRename = async (id) => {
+        const input = document.getElementById(`input-${id}`);
+        const newName = input.value.trim();
+        if (!newName) return;
+
+        try {
+            const resp = await fetch(`/api/rename/${id}`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ new_name: newName })
+            });
+
+            if (!resp.ok) throw new Error('Falha ao renomear');
+
+            await loadHistory();
+        } catch (err) {
+            showError('Erro ao renomear: ' + err.message);
+            cancelRename(id);
+        }
+    };
+
+    window.changeAnalysisStatus = async (id, selectElement) => {
+        const status = selectElement.value;
+        try {
+            const resp = await fetch(`/api/task/${id}/analysis`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ status: status })
+            });
+            if (!resp.ok) throw new Error('Failed to update status');
+            await loadHistory();
+        } catch (err) {
+            showError('Erro ao atualizar status: ' + err.message);
+        }
+    };
+
+    window.escapeHtml = escapeHtml;
 
     function showHistoryDetail(task) {
         resultText.value = task.text;
         const processingInfo = [];
         processingInfo.push(`Arquivo: ${task.filename}`);
         processingInfo.push(`Idioma: ${task.language}`);
-        if (task.duration) processingInfo.push(`Duração: ${task.duration.toFixed(2)}s`);
-        if (task.processing_time) processingInfo.push(`Tempo de processamento: ${task.processing_time.toFixed(2)}s`);
+        if (task.duration) processingInfo.push(`Duração: ${task.duration ? task.duration.toFixed(2) : '-'}s`);
         resultMeta.textContent = processingInfo.join(' | ');
 
         btnDownload.onclick = () => {
-            const link = document.createElement('a');
-            link.href = `data:text/plain;charset=utf-8,${encodeURIComponent(task.text)}`;
-            link.download = `${task.filename.replace(/\.[^.]+$/, '')}_transcription.txt`;
-            link.click();
+            window.location.href = `/api/download/${task.task_id}`;
         };
 
         resultSection.style.display = 'block';
@@ -398,7 +454,6 @@ document.addEventListener('DOMContentLoaded', async () => {
 
     if (btnClearHistory && clearConfirm && btnConfirmClear && btnCancelClear) {
         btnClearHistory.addEventListener('click', () => {
-            // Toggle confirm area
             clearConfirm.style.display = 'flex';
             btnClearHistory.style.display = 'none';
         });

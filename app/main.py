@@ -262,6 +262,7 @@ async def get_history(db: Session = Depends(get_db)):
             "language": task.language,
             "duration": task.duration,
             "processing_time": task.processing_time,
+            "analysis_status": task.analysis_status or "Pendente de análise",
             "completed_at": task.completed_at.isoformat() if task.completed_at else None
         }
         for task in tasks
@@ -278,7 +279,23 @@ async def rename_task(task_id: str, payload: dict, db: Session = Depends(get_db)
     task = task_store.rename_task(task_id, new_name)
     if not task:
         raise HTTPException(status_code=404, detail="Task not found")
+    if not task:
+        raise HTTPException(status_code=404, detail="Task not found")
     return {"task_id": task.task_id, "filename": task.filename}
+
+
+@app.post("/api/task/{task_id}/analysis")
+async def update_task_analysis(task_id: str, payload: dict, db: Session = Depends(get_db)):
+    """Update the manual analysis status of a transcription."""
+    status = payload.get("status")
+    if not status:
+        raise HTTPException(status_code=400, detail="status is required")
+    
+    task_store = crud.TaskStore(db)
+    task = task_store.update_analysis_status(task_id, status)
+    if not task:
+        raise HTTPException(status_code=404, detail="Task not found")
+    return {"task_id": task.task_id, "analysis_status": task.analysis_status}
 
 
 @app.post("/api/history/clear")
