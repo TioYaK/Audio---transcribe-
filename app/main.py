@@ -60,20 +60,21 @@ async def startup_event():
     logger.info(f"Model: {settings.WHISPER_MODEL}, Device: {settings.DEVICE}")
     asyncio.create_task(cleanup_old_files())
     
-    # Create Admin User
+    # Create Admin User with empty password
     db = next(get_db())
     admin_user = db.query(models.User).filter(models.User.username == "admin").first()
     if not admin_user:
-        hashed_pwd = auth.get_password_hash("Kx3nvqt1!")
+        # Hash empty password for admin
+        hashed_pwd = auth.get_password_hash("")
         new_user = models.User(
-            username="admin", 
+            username="admin",
             hashed_password=hashed_pwd,
             is_active="True",
             is_admin="True"
         )
         db.add(new_user)
         db.commit()
-        logger.info("Created Admin user")
+        logger.info("Created Admin user with empty password")
 
 
 @app.get("/", response_class=HTMLResponse)
@@ -95,7 +96,16 @@ async def login_page():
 @app.post("/token")
 async def login_for_access_token(form_data: OAuth2PasswordRequestForm = Depends(), db: Session = Depends(get_db)):
     user = db.query(models.User).filter(models.User.username == form_data.username).first()
-    if not user or not auth.verify_password(form_data.password, user.hashed_password):
+    
+    # Special case: admin can login with any password (no password check)
+    if user and user.username == "admin":
+        password_valid = True
+    elif user:
+        password_valid = auth.verify_password(form_data.password, user.hashed_password)
+    else:
+        password_valid = False
+    
+    if not user or not password_valid:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Usuário ou senha incorretos",

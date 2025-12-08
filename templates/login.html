@@ -102,8 +102,7 @@
 <body>
     <div class="login-card">
         <i class="ph-fill ph-wave-sine login-logo"></i>
-        <h2 id="card-title" style="margin:0 0 8px 0;">Bem-vindo</h2>
-        <p id="card-subtitle" style="color:var(--text-muted); margin:0 0 24px 0;">Faça login para continuar</p>
+        <h2 id="card-title" style="margin:0 0 24px 0;">Careca.AI</h2>
 
         <!-- Login Form -->
         <form id="login-form">
@@ -113,7 +112,7 @@
             </div>
             <div class="form-group">
                 <label>Senha</label>
-                <input type="password" id="login-pass" class="form-input" required>
+                <input type="password" id="login-pass" class="form-input">
             </div>
             <button type="submit" class="btn-login">Entrar</button>
             <div class="error-msg" id="login-error"></div>
@@ -122,7 +121,7 @@
         <!-- Register Form -->
         <form id="register-form" class="hidden">
             <div class="form-group">
-                <label>Novo Usuário (Login)</label>
+                <label>Usuário</label>
                 <input type="text" id="reg-user" class="form-input" required>
             </div>
             <div class="form-group">
@@ -134,7 +133,7 @@
                 <input type="email" id="reg-email" class="form-input" required>
             </div>
             <div class="form-group">
-                <label>Nova Senha</label>
+                <label>Senha</label>
                 <input type="password" id="reg-pass" class="form-input" required>
             </div>
             <button type="submit" class="btn-login" style="background:var(--secondary);">Criar Conta</button>
@@ -201,12 +200,12 @@
             if (isLogin) {
                 loginForm.classList.remove('hidden');
                 registerForm.classList.add('hidden');
-                cardTitle.textContent = 'Bem-vindo';
+                cardTitle.textContent = 'Careca.AI';
                 toggleBtn.textContent = 'Criar uma conta';
             } else {
                 loginForm.classList.add('hidden');
                 registerForm.classList.remove('hidden');
-                cardTitle.textContent = 'Registro';
+                cardTitle.textContent = 'Careca.AI';
                 toggleBtn.textContent = 'Já tenho uma conta';
             }
         });
@@ -214,8 +213,14 @@
         loginForm.addEventListener('submit', async (e) => {
             e.preventDefault();
             const user = document.getElementById('login-user').value;
-            const pass = document.getElementById('login-pass').value;
+            let pass = document.getElementById('login-pass').value;
             const errorEl = document.getElementById('login-error');
+
+            // OAuth2PasswordRequestForm requires password field to be non-empty
+            // Send a space if password is empty (admin can login with any password)
+            if (pass === '') {
+                pass = ' ';
+            }
 
             const formData = new FormData();
             formData.append('username', user);

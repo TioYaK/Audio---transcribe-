@@ -505,16 +505,21 @@ tr:hover td {
 
 .result-textarea {
     width: 100%;
-    min-height: 300px;
+    min-height: 400px;
+    max-height: 600px;
     background: var(--bg-input);
     border: 1px solid var(--border);
     border-radius: 12px;
-    padding: 16px;
+    padding: 20px;
     color: var(--text-main);
-    font-family: monospace;
-    font-size: 0.9rem;
+    font-family: 'Outfit', sans-serif;
+    font-size: 1rem;
+    line-height: 1.8;
     resize: vertical;
     margin-bottom: 16px;
+    white-space: pre-wrap;
+    word-wrap: break-word;
+    overflow-y: auto;
 }
 
 .result-textarea:focus {
