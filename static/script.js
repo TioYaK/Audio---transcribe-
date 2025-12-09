@@ -27,20 +27,83 @@ document.addEventListener('DOMContentLoaded', () => {
         window.location.href = '/login';
     }
 
-    // Navbar Setup
-    const logoutBtn = document.getElementById('logout-btn');
-    if (logoutBtn) {
-        logoutBtn.addEventListener('click', logout);
+    // Utils
+    function escapeHtml(text) {
+        if (!text) return '';
+        return text.replace(/[&<>"']/g, function (m) { return ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": "&#39;" })[m]; });
     }
-    // Navigation Logic
+
+    function showToast(msg, icon = 'ph-check-circle') {
+        const toast = document.createElement('div');
+        toast.className = 'toast-notification';
+        toast.innerHTML = `<i class="ph ${icon}"></i> <span>${msg}</span>`;
+        document.body.appendChild(toast);
+
+        // Trigger reflow
+        toast.offsetHeight;
+        toast.classList.add('show');
+
+        setTimeout(() => {
+            toast.classList.remove('show');
+            setTimeout(() => toast.remove(), 500);
+        }, 3000);
+    }
+
+    // DOM Elements - Navigation & Views
+    const logoutBtn = document.getElementById('logout-btn');
+    if (logoutBtn) logoutBtn.addEventListener('click', logout);
+
     const adminLink = document.getElementById('admin-link');
     const dashboardLink = document.getElementById('dashboard-link');
     const reportLink = document.getElementById('report-link');
+    const joinQldLink = document.getElementById('join-qld-link');
+    const joinCapLink = document.getElementById('join-cap-link');
 
     const dashboardView = document.getElementById('dashboard-view');
     const adminView = document.getElementById('admin-view');
     const reportView = document.getElementById('report-view');
 
+    // DOM Elements - Theme & Sidebar
+    const themeToggle = document.getElementById('theme-toggle');
+    const sidebarToggle = document.getElementById('sidebar-toggle');
+    const sidebar = document.querySelector('.sidebar');
+
+    // DOM Elements - Dashboard
+    const fileInput = document.getElementById('file-input');
+    const uploadZone = document.getElementById('upload-zone');
+    const uploadBtn = document.querySelector('.btn-upload-trigger');
+    const statusSection = document.getElementById('status-section');
+    const inprogressList = document.getElementById('inprogress-list');
+    const historyBody = document.getElementById('history-body');
+    const emptyState = document.getElementById('empty-state');
+    const btnClearHistory = document.getElementById('btn-clear-history');
+    const usageDisplay = document.getElementById('usage-display');
+
+    // DOM Elements - Result Modal
+    const resultModal = document.getElementById('result-modal');
+    const resultText = document.getElementById('result-text');
+    const resultMeta = document.getElementById('result-meta');
+    const btnCloseModal = document.getElementById('btn-close-modal');
+    const btnDownload = document.getElementById('btn-download-text');
+    const btnDownloadAudio = document.getElementById('btn-download-audio');
+    const btnCopyText = document.getElementById('btn-copy-text');
+
+    // DOM Elements - Audio Player
+    const audioPlayerContainer = document.getElementById('audio-player');
+    const audioEl = document.getElementById('audio-element');
+    const playBtn = document.getElementById('play-pause-btn');
+    const playIcon = document.getElementById('play-icon');
+
+    const currentTimeEl = document.getElementById('current-time');
+    const durationEl = document.getElementById('duration-display');
+    const seekContainer = document.getElementById('seek-container');
+    const seekFill = document.getElementById('seek-fill');
+    const volumeSlider = document.getElementById('volume-slider');
+    const volumeIcon = document.getElementById('volume-icon');
+
+    // --- Interaction Logic ---
+
+    // Navigation
     function updateNav(target) {
         document.querySelectorAll('.nav-item').forEach(el => el.classList.remove('active'));
         if (target) target.classList.add('active');
@@ -49,11 +112,9 @@ document.addEventListener('DOMContentLoaded', () => {
     async function showDashboard(e) {
         if (e) e.preventDefault();
         updateNav(dashboardLink);
-
         adminView.classList.add('hidden');
         reportView.classList.add('hidden');
         dashboardView.classList.remove('hidden');
-
         loadHistory();
         loadUserInfo();
     }
@@ -62,139 +123,42 @@ document.addEventListener('DOMContentLoaded', () => {
     async function showReports(e) {
         if (e) e.preventDefault();
         updateNav(reportLink);
-
         adminView.classList.add('hidden');
         dashboardView.classList.add('hidden');
         reportView.classList.remove('hidden');
-
         await loadReports();
-    }
-
-    async function loadReports() {
-        try {
-            const res = await authFetch('/api/reports');
-            const data = await res.json();
-
-            // Populate Cards
-            document.getElementById('stat-total').textContent = data.total_completed;
-            document.getElementById('stat-proced').textContent = data.procedente;
-            document.getElementById('stat-improced').textContent = data.improcedente;
-            document.getElementById('stat-pending').textContent = data.pendente;
-
-            // Render Chart
-            const ctx = document.getElementById('reportsChart').getContext('2d');
-
-            if (reportsChart) {
-                reportsChart.destroy();
-            }
-
-            // Colors based on theme
-            const isDark = document.documentElement.getAttribute('data-theme') === 'dark';
-            const textColor = isDark ? '#94a3b8' : '#6b7280';
-
-            reportsChart = new Chart(ctx, {
-                type: 'bar',
-                data: {
-                    labels: ['Procedente', 'Improcedente', 'Pendente', 'Indefinido'],
-                    datasets: [{
-                        label: 'Transcrições',
-                        data: [data.procedente, data.improcedente, data.pendente, data.sem_conclusao],
-                        backgroundColor: [
-                            'rgba(16, 185, 129, 0.6)',
-                            'rgba(239, 68, 68, 0.6)',
-                            'rgba(245, 158, 11, 0.6)',
-                            'rgba(99, 102, 241, 0.6)'
-                        ],
-                        borderColor: [
-                            'rgba(16, 185, 129, 1)',
-                            'rgba(239, 68, 68, 1)',
-                            'rgba(245, 158, 11, 1)',
-                            'rgba(99, 102, 241, 1)'
-                        ],
-                        borderWidth: 1
-                    }]
-                },
-                options: {
-                    responsive: true,
-                    maintainAspectRatio: false,
-                    plugins: {
-                        legend: { display: false },
-                        title: { display: true, text: 'Distribuição por Status', color: textColor }
-                    },
-                    scales: {
-                        y: {
-                            beginAtZero: true,
-                            ticks: { color: textColor },
-                            grid: { color: isDark ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.1)' }
-                        },
-                        x: {
-                            ticks: { color: textColor },
-                            grid: { display: false }
-                        }
-                    }
-                }
-            });
-
-        } catch (e) {
-            console.error(e);
-            alert('Erro ao carregar relatórios');
-        }
     }
 
     async function showAdminPanel(e) {
         if (e) e.preventDefault();
         updateNav(adminLink);
-
         dashboardView.classList.add('hidden');
         reportView.classList.add('hidden');
         adminView.classList.remove('hidden');
 
-        // Reuse existing struct or inject if empty
         if (!document.getElementById('pending-users-list')) {
             adminView.innerHTML = `
                 <div class="header-bar">
-                    <div class="page-title">
-                        <h1>Administração</h1>
-                        <p>Gerenciamento de usuários</p>
-                    </div>
+                    <div class="page-title"><h1>Administração</h1><p>Gerenciamento de usuários</p></div>
                 </div>
-                
                 <div class="glass-card">
-                    <h3>Usuários Pendentes</h3>
-                    <div id="pending-users-list" style="margin-top:16px;">Carregando...</div>
-                    
-                    <h3 style="margin-top:32px;">Todos os Usuários</h3>
-                    <div id="all-users-list" style="margin-top:16px;">Carregando...</div>
-                </div>
-            `;
+                    <h3>Usuários Pendentes</h3><div id="pending-users-list" style="margin-top:16px;">Carregando...</div>
+                    <h3 style="margin-top:32px;">Todos os Usuários</h3><div id="all-users-list" style="margin-top:16px;">Carregando...</div>
+                </div>`;
         }
-
         loadAdminUsers();
     }
 
+    // Nav Events
     if (dashboardLink) dashboardLink.addEventListener('click', showDashboard);
     if (reportLink) reportLink.addEventListener('click', showReports);
+    if (joinQldLink) joinQldLink.addEventListener('click', (e) => { e.preventDefault(); updateNav(joinQldLink); showToast('Funcionalidade em desenvolvimento', 'ph-wrench'); });
+    if (joinCapLink) joinCapLink.addEventListener('click', (e) => { e.preventDefault(); updateNav(joinCapLink); showToast('Funcionalidade em desenvolvimento', 'ph-wrench'); });
+
     if (isAdmin && adminLink) {
         adminLink.classList.remove('hidden');
         adminLink.addEventListener('click', showAdminPanel);
     }
-
-    // DOM Elements
-    const mainContent = document.querySelector('.main-content');
-    const fileInput = document.getElementById('file-input');
-    const uploadZone = document.getElementById('upload-zone');
-    const uploadBtn = document.querySelector('.btn-upload-trigger');
-    const statusSection = document.getElementById('status-section');
-    const inprogressList = document.getElementById('inprogress-list');
-    const historyBody = document.getElementById('history-body');
-    const emptyState = document.getElementById('empty-state');
-    const resultModal = document.getElementById('result-modal');
-    const resultText = document.getElementById('result-text');
-    const resultMeta = document.getElementById('result-meta');
-    const btnCloseModal = document.getElementById('btn-close-modal');
-    const btnDownload = document.getElementById('btn-download-text');
-    const btnClearHistory = document.getElementById('btn-clear-history');
-    const themeToggle = document.getElementById('theme-toggle');
 
     // Theme Logic
     const initTheme = () => {
@@ -214,8 +178,7 @@ document.addEventListener('DOMContentLoaded', () => {
     const updateThemeIcon = (theme) => {
         const icon = document.getElementById('theme-icon');
         const label = document.querySelector('.toggle-label');
-        if (!icon || !label) return; // Prevent crash if elements missing
-
+        if (!icon || !label) return;
         if (theme === 'dark') {
             icon.classList.replace('ph-sun', 'ph-moon');
             label.textContent = 'Modo Claro';
@@ -224,177 +187,183 @@ document.addEventListener('DOMContentLoaded', () => {
             label.textContent = 'Modo Escuro';
         }
     };
-
     if (themeToggle) themeToggle.addEventListener('click', toggleTheme);
-    initTheme(); // Run on load
+    initTheme();
 
-    // Sidebar Collapse Toggle
-    const sidebarToggle = document.getElementById('sidebar-toggle');
-    const sidebar = document.querySelector('.sidebar');
-
-    // Load saved state
-    const sidebarCollapsed = localStorage.getItem('sidebar-collapsed') === 'true';
-    if (sidebarCollapsed && sidebar) {
-        sidebar.classList.add('collapsed');
-    }
-
+    // Sidebar
+    const sidebarState = localStorage.getItem('sidebar-collapsed') === 'true';
+    if (sidebarState && sidebar) sidebar.classList.add('collapsed');
     if (sidebarToggle && sidebar) {
         sidebarToggle.addEventListener('click', () => {
             sidebar.classList.toggle('collapsed');
-            const isCollapsed = sidebar.classList.contains('collapsed');
-            localStorage.setItem('sidebar-collapsed', isCollapsed);
+            localStorage.setItem('sidebar-collapsed', sidebar.classList.contains('collapsed'));
         });
     }
 
-    // Upload Interaction
+    // --- Upload Logic ---
     if (uploadBtn) uploadBtn.addEventListener('click', () => fileInput.click());
 
     if (uploadZone) {
-        uploadZone.addEventListener('dragover', (e) => {
-            e.preventDefault();
-            uploadZone.classList.add('dragover');
-        });
-
+        uploadZone.addEventListener('dragover', (e) => { e.preventDefault(); uploadZone.classList.add('dragover'); });
         uploadZone.addEventListener('dragleave', () => uploadZone.classList.remove('dragover'));
-
         uploadZone.addEventListener('drop', (e) => {
             e.preventDefault();
             uploadZone.classList.remove('dragover');
             if (e.dataTransfer.files.length) handleFiles(e.dataTransfer.files);
         });
     }
+    if (fileInput) fileInput.addEventListener('change', (e) => { if (e.target.files.length) handleFiles(e.target.files); });
 
-    if (fileInput) {
-        fileInput.addEventListener('change', (e) => {
-            if (e.target.files.length) handleFiles(e.target.files);
-        });
-    }
+    function handleFiles(files) { Array.from(files).forEach(uploadFile); }
 
-    function handleFiles(files) {
-        Array.from(files).forEach(uploadFile);
-    }
-
-    // API & UI Logic
     async function uploadFile(file) {
         statusSection.classList.remove('hidden');
-
-        // UI Item
         const item = document.createElement('div');
         item.className = 'progress-item';
+        const itemId = 'file-' + Math.random().toString(36).substr(2, 9);
+        item.id = itemId;
         item.innerHTML = `
             <div style="font-weight:500; min-width:150px;">${escapeHtml(file.name)}</div>
             <div class="progress-bar-track">
-                <div class="progress-bar-fill"></div>
+                <div class="progress-bar-fill" style="width: 0%"></div>
             </div>
-            <div class="progress-status" style="font-size:0.85rem; color:var(--text-muted); min-width:80px; text-align:right;">Enviando...</div>
+            <div class="console-logs" id="console-${itemId}"></div>
         `;
         inprogressList.prepend(item);
 
         const formData = new FormData();
         formData.append('file', file);
+        const bar = item.querySelector('.progress-bar-fill');
+        const consoleEl = item.querySelector(`#console-${itemId}`);
 
-        try {
-            const res = await authFetch('/api/upload', { method: 'POST', body: formData });
-            const data = await res.json();
-            if (!res.ok) throw new Error(data.detail || 'Falha no envio');
-
-            pollStatus(data.task_id, item);
-        } catch (err) {
-            const statusEl = item.querySelector('.progress-status');
-            statusEl.textContent = err.message;
-            statusEl.style.color = 'var(--danger)';
-            statusEl.style.fontSize = '0.75rem'; // Reduce size for longer messages
-            statusEl.title = err.message;
-            console.error(err);
+        function addLog(msg) {
+            const line = document.createElement('div');
+            line.className = 'log-line active';
+            line.textContent = `> ${msg}`;
+            consoleEl.appendChild(line);
+            consoleEl.scrollTop = consoleEl.scrollHeight;
+            if (consoleEl.children.length > 2) {
+                // Keep active/opacity logic for last few lines
+                Array.from(consoleEl.children).slice(0, -1).forEach(c => c.classList.remove('active'));
+            }
         }
+        item.addLog = addLog;
+
+        addLog(`Iniciando upload de: ${file.name}`);
+
+        const xhr = new XMLHttpRequest();
+        xhr.open('POST', '/api/upload', true);
+        const t = sessionStorage.getItem('access_token');
+        if (t) xhr.setRequestHeader('Authorization', `Bearer ${t}`);
+
+        xhr.upload.onprogress = (e) => {
+            if (e.lengthComputable) {
+                const percent = Math.round((e.loaded / e.total) * 100);
+                bar.style.width = `${percent}%`;
+                if (percent % 10 === 0 && percent < 100) addLog(`Enviando... ${percent}%`);
+                if (percent === 100) addLog('Aguardando resposta do servidor...');
+            }
+        };
+
+        xhr.onload = function () {
+            if (xhr.status >= 200 && xhr.status < 300) {
+                try {
+                    const data = JSON.parse(xhr.responseText);
+                    addLog(`ID: ${data.task_id} - Iniciando monitoramento...`);
+                    pollStatus(data.task_id, item);
+                } catch (e) { handleError('Erro na resposta'); }
+            } else {
+                let msg = 'Erro no envio';
+                try { msg = JSON.parse(xhr.responseText).detail || msg; } catch (e) { }
+                addLog(`ERRO: ${msg}`);
+                handleError(msg);
+            }
+        };
+        xhr.onerror = function () { addLog('Falha de rede.'); handleError('Rede'); };
+        function handleError(msg) { bar.style.backgroundColor = 'var(--danger)'; }
+        xhr.send(formData);
     }
 
     function pollStatus(taskId, item) {
-        const statusEl = item.querySelector('.progress-status');
         const bar = item.querySelector('.progress-bar-fill');
-
+        let processedPercent = 0;
         const interval = setInterval(async () => {
             try {
                 const res = await authFetch(`/api/status/${taskId}`);
+                if (!res.ok) return;
                 const data = await res.json();
+                const pct = data.progress || 0;
 
-                if (data.status === 'processing' || data.status === 'pending') {
-                    const pct = data.progress || 0;
+                if (['processing', 'pending', 'queued'].includes(data.status)) {
                     bar.style.width = `${pct}%`;
-                    statusEl.textContent = `${pct}%`;
+                    if (data.status === 'queued') {
+                        if (item.addLog && processedPercent !== -1) {
+                            item.addLog('Na fila de processamento...');
+                            processedPercent = -1;
+                        }
+                    } else {
+                        if (item.addLog && pct > processedPercent && pct % 10 === 0) {
+                            item.addLog(`Processando... ${pct}%`);
+                            processedPercent = pct;
+                        }
+                    }
                 } else if (data.status === 'completed') {
                     clearInterval(interval);
                     bar.style.width = '100%';
-                    statusEl.textContent = 'Concluído';
-                    statusEl.style.color = 'var(--success)';
-
+                    if (item.addLog) {
+                        item.addLog('Concluído!');
+                        item.addLog('Atualizando lista...');
+                    }
                     setTimeout(() => {
                         item.remove();
                         if (inprogressList.children.length === 0) statusSection.classList.add('hidden');
                         loadHistory();
-                        loadUserInfo(); // Refresh usage display
-                    }, 1000);
+                        loadUserInfo();
+                    }, 2000);
                 } else if (data.status === 'failed') {
                     clearInterval(interval);
-                    statusEl.textContent = 'Falha';
-                    statusEl.style.color = 'var(--danger)';
+                    bar.style.backgroundColor = 'var(--danger)';
+                    if (item.addLog) item.addLog(`FALHA: ${data.error}`);
                 }
-            } catch (e) {
-                console.error(e);
-            }
-        }, 1000);
+            } catch (e) { console.error(e); }
+        }, 1500);
     }
 
-    // History Logic
+    // --- History Logic ---
     let showingAllHistory = false;
-
     async function loadHistory(showAll = false) {
         if (!historyBody) return;
         showingAllHistory = showAll;
-
         try {
             const endpoint = showAll ? '/api/history?all=true' : '/api/history';
             const res = await authFetch(endpoint);
             const data = await res.json();
 
-            // Handle Admin View Toggle
-            const historyHeader = document.querySelector('#history-table thead tr');
-            if (isAdmin && !document.getElementById('th-owner')) {
-                // Check if we need to add the Owner header
-                if (showAll) {
+            // Admin Toggle Button Logic
+            const headerRow = document.querySelector('#history-table thead tr');
+            if (isAdmin) {
+                if (showAll && !document.getElementById('th-owner')) {
                     const th = document.createElement('th');
-                    th.id = 'th-owner';
-                    th.textContent = 'Usuário';
-                    historyHeader.insertBefore(th, historyHeader.firstChild);
+                    th.id = 'th-owner'; th.textContent = 'Usuário';
+                    headerRow.insertBefore(th, headerRow.firstChild);
+                } else if (!showAll && document.getElementById('th-owner')) {
+                    document.getElementById('th-owner').remove();
                 }
-            } else if (!showAll && document.getElementById('th-owner')) {
-                document.getElementById('th-owner').remove();
-            }
 
-            // Add Toggle Button if Admin (and not already added)
-            const actionsArea = document.querySelector('.page-title');
-            if (isAdmin && !document.getElementById('btn-admin-toggle')) {
-                const btn = document.createElement('button');
-                btn.id = 'btn-admin-toggle';
-                btn.className = 'btn-upload-trigger'; // reuse style
-                btn.style.padding = '8px 16px';
-                btn.style.fontSize = '0.9rem';
-                btn.style.marginTop = '0';
-                btn.style.marginLeft = '16px';
-                btn.textContent = 'Ver Todos';
-                btn.onclick = () => {
-                    if (showingAllHistory) {
-                        btn.textContent = 'Ver Todos';
-                        loadHistory(false);
-                    } else {
-                        btn.textContent = 'Ver Meus';
-                        loadHistory(true);
-                    }
-                };
-                // Insert after h1/p logic, maybe append to title area
-                actionsArea.appendChild(btn);
+                const actionsArea = document.querySelector('.page-title');
+                if (!document.getElementById('btn-admin-toggle')) {
+                    const btn = document.createElement('button');
+                    btn.id = 'btn-admin-toggle';
+                    btn.className = 'btn-upload-trigger';
+                    btn.style.cssText = 'padding:8px 16px; font-size:0.9rem; margin:0 0 0 16px;';
+                    btn.textContent = 'Ver Todos';
+                    btn.onclick = () => {
+                        btn.textContent = showingAllHistory ? 'Ver Todos' : 'Ver Meus';
+                        loadHistory(!showingAllHistory);
+                    };
+                    actionsArea.appendChild(btn);
+                }
             }
-
 
             historyBody.innerHTML = '';
             if (data.length === 0) {
@@ -406,18 +375,58 @@ document.addEventListener('DOMContentLoaded', () => {
 
                 data.forEach(task => {
                     const tr = document.createElement('tr');
-
-                    const analysisStatus = task.analysis_status || 'Pendente de análise';
-
                     let ownerCell = '';
-                    if (showAll) {
-                        ownerCell = `<td style="font-weight:600; color:var(--primary)">${escapeHtml(task.owner_name || 'N/A')}</td>`;
+                    if (showAll) ownerCell = `<td style="font-weight:600; color:var(--primary)">${escapeHtml(task.owner_name || 'N/A')}</td>`;
+
+                    // Processing Duration
+                    let durationText = '-';
+                    if (task.created_at && task.completed_at) {
+                        const start = new Date(task.created_at);
+                        const end = new Date(task.completed_at);
+                        const diffMs = end - start;
+                        if (diffMs > 0) {
+                            const diffSec = Math.floor(diffMs / 1000);
+                            if (diffSec < 60) durationText = `${diffSec}s`;
+                            else {
+                                const mins = Math.floor(diffSec / 60);
+                                const secs = diffSec % 60;
+                                durationText = `${mins}m ${secs}s`;
+                            }
+                        }
+                    }
+
+                    // Status & Actions
+                    const analysis = task.analysis_status || 'Pendente de análise';
+                    let statusHtml = '';
+                    let actionsHtml = '';
+
+                    if (task.status === 'completed') {
+                        statusHtml = `<td>
+                            <select class="status-select" onchange="updateStatus('${task.task_id}', this.value)" onclick="event.stopPropagation()">
+                                <option value="Pendente de análise" ${analysis === 'Pendente de análise' ? 'selected' : ''}>Pendente</option>
+                                <option value="Procedente" ${analysis === 'Procedente' ? 'selected' : ''}>Procedente</option>
+                                <option value="Improcedente" ${analysis === 'Improcedente' ? 'selected' : ''}>Improcedente</option>
+                                <option value="Sem conclusão" ${analysis === 'Sem conclusão' ? 'selected' : ''}>Indefinido</option>
+                            </select>
+                        </td>`;
+                        actionsHtml = `
+                            <button class="action-btn" title="Renomear" onclick="startRename(event, '${task.task_id}')"><i class="ph ph-pencil-simple"></i></button>
+                            <button class="action-btn" title="Ver" onclick="viewResult('${task.task_id}')"><i class="ph ph-eye"></i></button>
+                            <button class="action-btn delete" title="Excluir" onclick="deleteTask(event, '${task.task_id}')"><i class="ph ph-trash"></i></button>
+                            <button class="action-btn" title="Baixar" onclick="downloadFile('${task.task_id}')"><i class="ph ph-download-simple"></i></button>
+                        `;
+                    } else if (task.status === 'failed') {
+                        statusHtml = `<td><span style="color:var(--danger)">Falha</span></td>`;
+                        actionsHtml = `<button class="action-btn delete" title="Excluir" onclick="deleteTask(event, '${task.task_id}')"><i class="ph ph-trash"></i></button>`;
+                    } else {
+                        statusHtml = `<td><span style="color:var(--primary)">Processando...</span></td>`;
+                        actionsHtml = `<button class="action-btn delete" title="Cancelar" onclick="deleteTask(event, '${task.task_id}')"><i class="ph ph-trash"></i></button>`;
                     }
 
                     tr.innerHTML = `
                         ${ownerCell}
                         <td>
-                            <div class="file-info" onclick="viewResult('${task.task_id}')">
+                            <div class="file-info" onclick="${task.status === 'completed' ? `viewResult('${task.task_id}')` : ''}">
                                 <i class="ph-fill ph-file-audio file-icon"></i>
                                 <span class="file-name-display" id="name-${task.task_id}">${escapeHtml(task.filename)}</span>
                                 <div class="inline-edit-wrapper hidden" id="edit-${task.task_id}">
@@ -427,34 +436,53 @@ document.addEventListener('DOMContentLoaded', () => {
                                 </div>
                             </div>
                         </td>
-                        <td style="color:var(--text-muted); font-size:0.85rem">${new Date(task.completed_at).toLocaleString()}</td>
+                        <td style="color:var(--text-muted); font-size:0.85rem">
+                            ${task.completed_at ? new Date(task.completed_at).toLocaleString() : 'Em andamento'}
+                            ${task.completed_at ? `<div style="font-size:0.75rem; opacity:0.7">Processado em: ${durationText}</div>` : ''}
+                        </td>
                         <td>${task.duration ? task.duration.toFixed(1) + 's' : '-'}</td>
-                        <td>
-                            <select class="status-select" onchange="updateStatus('${task.task_id}', this.value)" onclick="event.stopPropagation()">
-                                <option value="Pendente de análise" ${analysisStatus === 'Pendente de análise' ? 'selected' : ''}>Pendente</option>
-                                <option value="Procedente" ${analysisStatus === 'Procedente' ? 'selected' : ''}>Procedente</option>
-                                <option value="Improcedente" ${analysisStatus === 'Improcedente' ? 'selected' : ''}>Improcedente</option>
-                                <option value="Sem conclusão" ${analysisStatus === 'Sem conclusão' ? 'selected' : ''}>Indefinido</option>
-                            </select>
-                        </td>
-                        <td>
-                            <div style="display:flex; gap:4px;">
-                                <button class="action-btn" title="Renomear" onclick="startRename(event, '${task.task_id}')"><i class="ph ph-pencil-simple"></i></button>
-                                <button class="action-btn" title="Ver" onclick="viewResult('${task.task_id}')"><i class="ph ph-eye"></i></button>
-                                <button class="action-btn delete" title="Excluir" onclick="deleteTask(event, '${task.task_id}')"><i class="ph ph-trash"></i></button>
-                                <button class="action-btn" title="Baixar" onclick="downloadFile('${task.task_id}')"><i class="ph ph-download-simple"></i></button>
-                            </div>
-                        </td>
+                        ${statusHtml}
+                        <td><div style="display:flex; gap:4px;">${actionsHtml}</div></td>
                     `;
                     historyBody.appendChild(tr);
                 });
             }
-        } catch (err) {
-            console.error('Erro ao carregar histórico', err);
-        }
+        } catch (e) { console.error(e); }
     }
 
-    // Actions
+    if (btnClearHistory) btnClearHistory.addEventListener('click', async () => {
+        if (confirm('Limpar todo o histórico?')) {
+            await authFetch('/api/history/clear', { method: 'POST' });
+            loadHistory();
+        }
+    });
+
+    // --- Global Actions (attached to window) ---
+    window.startRename = (e, id) => {
+        e.stopPropagation();
+        document.getElementById(`name-${id}`).classList.add('hidden');
+        document.getElementById(`edit-${id}`).classList.remove('hidden');
+    };
+    window.cancelName = (e, id) => {
+        e.stopPropagation();
+        document.getElementById(`name-${id}`).classList.remove('hidden');
+        document.getElementById(`edit-${id}`).classList.add('hidden');
+    };
+    window.saveName = async (e, id) => {
+        e.stopPropagation();
+        const val = document.getElementById(`input-${id}`).value;
+        if (!val.trim()) return alert('Nome inválido');
+        try {
+            await authFetch(`/api/rename/${id}`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ new_name: val })
+            });
+            document.getElementById(`name-${id}`).textContent = val;
+            window.cancelName(e, id);
+        } catch (e) { alert('Erro ao salvar'); }
+    };
+
     window.updateStatus = async (id, status) => {
         try {
             await authFetch(`/api/task/${id}/analysis`, {
@@ -463,44 +491,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 body: JSON.stringify({ status })
             });
         } catch (e) { alert('Erro ao atualizar status'); }
-    }
-
-    window.viewResult = async (id) => {
-        try {
-            const res = await authFetch(`/api/result/${id}`);
-            if (!res.ok) throw new Error('Falha ao buscar resultado');
-            const data = await res.json();
-
-            resultText.value = data.text || 'Sem transcrição disponível.';
-            resultMeta.textContent = `${data.filename} | ${data.language || '?'} | ${data.duration ? data.duration.toFixed(2) : 0}s`;
-
-            if (btnDownload) btnDownload.onclick = () => window.downloadFile(id);
-
-            if (resultModal) resultModal.style.display = 'grid';
-        } catch (e) {
-            console.error(e);
-            alert('Erro ao abrir resultado.');
-        }
-    }
-
-    window.downloadFile = (id) => {
-        fetchDownload(id);
-    }
-
-    async function fetchDownload(id) {
-        try {
-            const res = await authFetch(`/api/download/${id}`);
-            if (!res.ok) throw new Error(data.detail || 'Falha no download');
-            const blob = await res.blob();
-            const url = window.URL.createObjectURL(blob);
-            const a = document.createElement('a');
-            a.href = url;
-            a.download = `transcription-${id}.txt`;
-            document.body.appendChild(a);
-            a.click();
-            document.body.removeChild(a);
-        } catch (e) { alert('Erro no download'); }
-    }
+    };
 
     window.deleteTask = async (e, id) => {
         e.stopPropagation();
@@ -508,261 +499,296 @@ document.addEventListener('DOMContentLoaded', () => {
         try {
             await authFetch(`/api/task/${id}`, { method: 'DELETE' });
             loadHistory();
+            loadUserInfo();
+            const rp = document.getElementById('report-view');
+            if (rp && !rp.classList.contains('hidden')) loadReports();
         } catch (e) { alert('Erro ao excluir'); }
+    };
+
+    window.downloadFile = (id) => {
+        authFetch(`/api/download/${id}`).then(res => {
+            if (res.ok) return res.blob();
+            throw new Error('Falha download');
+        }).then(blob => {
+            const url = window.URL.createObjectURL(blob);
+            const a = document.createElement('a'); a.href = url; a.download = `transcription-${id}.txt`;
+            document.body.appendChild(a); a.click(); document.body.removeChild(a);
+        }).catch(e => alert('Erro no download'));
+    };
+
+    // --- Result View & Player ---
+
+    // Player Logic
+    function formatTime(seconds) {
+        if (!seconds || isNaN(seconds)) return "0:00";
+        const mins = Math.floor(seconds / 60);
+        const secs = Math.floor(seconds % 60);
+        return `${mins}:${secs.toString().padStart(2, '0')}`;
     }
 
-    // Inline Rename
-    window.startRename = (e, id) => {
-        e.stopPropagation();
-        document.getElementById(`name-${id}`).classList.add('hidden');
-        document.getElementById(`edit-${id}`).classList.remove('hidden');
+    if (playBtn && audioEl) {
+        playBtn.addEventListener('click', () => {
+            if (audioEl.paused) audioEl.play().catch(console.error);
+            else audioEl.pause();
+        });
+        audioEl.addEventListener('play', () => playIcon.classList.replace('ph-play', 'ph-pause'));
+        audioEl.addEventListener('pause', () => playIcon.classList.replace('ph-pause', 'ph-play'));
+        audioEl.addEventListener('timeupdate', () => {
+            const percent = (audioEl.currentTime / audioEl.duration) * 100;
+            seekFill.style.width = `${percent}%`;
+            currentTimeEl.textContent = formatTime(audioEl.currentTime);
+        });
+        audioEl.addEventListener('loadedmetadata', () => durationEl.textContent = formatTime(audioEl.duration));
+        audioEl.addEventListener('ended', () => {
+            playIcon.classList.replace('ph-pause', 'ph-play');
+            seekFill.style.width = '0%';
+        });
+    }
+    if (seekContainer && audioEl) {
+        seekContainer.addEventListener('click', (e) => {
+            const rect = seekContainer.getBoundingClientRect();
+            const percent = (e.clientX - rect.left) / rect.width;
+            audioEl.currentTime = percent * audioEl.duration;
+        });
+    }
+    if (volumeSlider && audioEl) {
+        volumeSlider.addEventListener('input', (e) => {
+            audioEl.volume = e.target.value;
+            const vol = audioEl.volume;
+            if (vol == 0) volumeIcon.className = 'ph ph-speaker-slash';
+            else if (vol < 0.5) volumeIcon.className = 'ph ph-speaker-low';
+            else volumeIcon.className = 'ph ph-speaker-high';
+        });
+        // Toggle Mute
+        volumeIcon.addEventListener('click', () => {
+            if (audioEl.volume > 0) {
+                audioEl.dataset.prev = audioEl.volume; audioEl.volume = 0; volumeSlider.value = 0;
+                volumeIcon.className = 'ph ph-speaker-slash';
+            } else {
+                audioEl.volume = audioEl.dataset.prev || 1; volumeSlider.value = audioEl.volume;
+                volumeIcon.className = 'ph ph-speaker-high';
+            }
+        });
     }
 
-    window.saveName = async (e, id) => {
-        e.stopPropagation();
-        const input = document.getElementById(`input-${id}`);
-        const newName = input.value;
+    window.copyToClipboard = (text) => {
+        navigator.clipboard.writeText(text).then(() => showToast('ID copiado!', 'ph-check')).catch(() => prompt("Copiar ID:", text));
+    };
 
-        if (!newName || !newName.trim()) {
-            alert('Nome não pode ser vazio');
-            return;
-        }
+    // Download Audio with debug
+    window.downloadAudio = (id) => {
+        authFetch(`/api/audio/${id}`).then(res => {
+            if (res.ok) return res.blob();
+            throw new Error(`Status ${res.status}`);
+        }).then(blob => {
+            if (blob.size === 0) throw new Error('Blob vazio');
+            const url = window.URL.createObjectURL(blob);
+            const a = document.createElement('a'); a.href = url;
+            const ext = blob.type.includes('mpeg') ? 'mp3' : (blob.type.includes('wav') ? 'wav' : 'm4a');
+            a.download = `audio-${id}.${ext}`;
+            document.body.appendChild(a); a.click(); document.body.removeChild(a);
+        }).catch(e => {
+            console.error('Download Audio Fail:', e);
+            alert(`Erro ao baixar áudio: ${e.message}`);
+        });
+    };
 
+    window.viewResult = async (id) => {
         try {
-            const res = await authFetch(`/api/rename/${id}`, {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ new_name: newName })
+            const res = await authFetch(`/api/result/${id}`);
+            if (!res.ok) throw new Error('Falha ao buscar');
+            const data = await res.json();
+
+            resultText.value = data.text || 'Sem transcrição.';
+
+            // Metadata: File Name, Duration, Task ID
+            resultMeta.innerHTML = `
+                <div class="meta-grid">
+                    <div class="meta-item">
+                        <span class="meta-label">Arquivo</span>
+                        <div class="meta-value" title="${escapeHtml(data.filename)}"><i class="ph ph-file-audio"></i> ${escapeHtml(data.filename)}</div>
+                    </div>
+                    <div class="meta-item">
+                        <span class="meta-label">Duração</span>
+                        <div class="meta-value"><i class="ph ph-clock"></i> ${data.duration ? data.duration.toFixed(2) + 's' : '-'}</div>
+                    </div>
+                    <div class="meta-item" style="cursor:pointer;" onclick="event.stopPropagation(); copyToClipboard('${id}')" title="Clique para copiar ID">
+                        <span class="meta-label">Task ID</span>
+                        <div class="meta-value"><i class="ph ph-hash"></i> ${id} <i class="ph-bold ph-copy" style="font-size:0.8em; margin-left:4px"></i></div>
+                    </div>
+                </div>`;
+
+            if (btnDownload) btnDownload.onclick = () => window.downloadFile(id);
+            if (btnDownloadAudio) btnDownloadAudio.onclick = () => window.downloadAudio(id);
+
+            // Setup Player
+            if (audioPlayerContainer && audioEl) {
+                audioEl.pause();
+                audioEl.src = "";
+                audioPlayerContainer.classList.add('hidden');
+
+                try {
+                    const aRes = await authFetch(`/api/audio/${id}`);
+                    if (aRes.ok) {
+                        const blob = await aRes.blob();
+                        if (blob.size > 0) {
+                            const url = URL.createObjectURL(blob);
+                            audioEl.src = url;
+                            audioPlayerContainer.classList.remove('hidden');
+                        }
+                    } else {
+                        console.warn("Audio fetch failed status:", aRes.status);
+                    }
+                } catch (e) { console.warn("Audio error", e); }
+            }
+            if (resultModal) resultModal.style.display = 'grid';
+        } catch (e) {
+            console.error(e);
+            alert('Erro ao abrir resultado');
+        }
+    };
+
+    if (btnCloseModal) {
+        btnCloseModal.addEventListener('click', () => {
+            resultModal.style.display = 'none';
+            if (audioEl) { audioEl.pause(); audioEl.currentTime = 0; }
+        });
+    }
+    if (resultModal) {
+        resultModal.addEventListener('click', (e) => {
+            if (e.target === resultModal) {
+                resultModal.style.display = 'none';
+                if (audioEl) { audioEl.pause(); audioEl.currentTime = 0; }
+            }
+        });
+    }
+
+    // --- Reports & Admin ---
+    async function loadReports() {
+        try {
+            const res = await authFetch('/api/reports');
+            const data = await res.json();
+            document.getElementById('stat-total').textContent = data.total_completed;
+            document.getElementById('stat-proced').textContent = data.procedente;
+            document.getElementById('stat-improced').textContent = data.improcedente;
+            document.getElementById('stat-pending').textContent = data.pendente;
+
+            const ctx = document.getElementById('reportsChart').getContext('2d');
+            if (reportsChart) reportsChart.destroy();
+
+            const isDark = document.documentElement.getAttribute('data-theme') === 'dark';
+            const color = isDark ? '#94a3b8' : '#6b7280';
+
+            reportsChart = new Chart(ctx, {
+                type: 'bar',
+                data: {
+                    labels: ['Procedente', 'Improcedente', 'Pendente', 'Indefinido'],
+                    datasets: [{
+                        label: 'Transcrições',
+                        data: [data.procedente, data.improcedente, data.pendente, data.sem_conclusao],
+                        backgroundColor: ['#10b98199', '#ef444499', '#f59e0b99', '#6366f199'],
+                        borderColor: ['#10b981', '#ef4444', '#f59e0b', '#6366f1'],
+                        borderWidth: 1
+                    }]
+                },
+                options: {
+                    responsive: true, maintainAspectRatio: false,
+                    plugins: { legend: { display: false }, title: { display: true, text: 'Distribuição', color: color } },
+                    scales: { y: { ticks: { color: color }, grid: { color: isDark ? '#ffffff11' : '#00000011' } }, x: { ticks: { color: color }, grid: { display: false } } }
+                }
             });
-
-            if (!res.ok) throw new Error('Erro ao renomear');
-
-            // Update UI
-            document.getElementById(`name-${id}`).textContent = newName;
-
-            // Reset view using cancelName logic (hide input, show text)
-            // We pass a dummy event since we already handled propagation
-            const dummyEvent = { stopPropagation: () => { } };
-            window.cancelName(dummyEvent, id);
-
-        } catch (err) {
-            console.error(err);
-            alert('Erro ao salvar nome');
-        }
+        } catch (e) { console.error(e); }
     }
-
-    window.cancelName = (e, id) => {
-        e.stopPropagation();
-        document.getElementById(`name-${id}`).classList.remove('hidden');
-        document.getElementById(`edit-${id}`).classList.add('hidden');
-    }
-
-    if (btnCloseModal) btnCloseModal.addEventListener('click', () => resultModal.style.display = 'none');
-
-    // Clear History
-    if (btnClearHistory) btnClearHistory.addEventListener('click', async () => {
-        if (confirm('Limpar todo o histórico?')) {
-            await authFetch('/api/history/clear', { method: 'POST' });
-            loadHistory();
-        }
-    });
-
-
 
     async function loadAdminUsers() {
         try {
             const res = await authFetch('/api/admin/users');
             const users = await res.json();
-
-            const pendingList = document.getElementById('pending-users-list');
-            const allList = document.getElementById('all-users-list');
-
-            pendingList.innerHTML = '';
-            allList.innerHTML = '';
+            const pList = document.getElementById('pending-users-list');
+            const aList = document.getElementById('all-users-list');
+            pList.innerHTML = ''; aList.innerHTML = '';
 
             users.forEach(u => {
-                const activeStatus = u.is_active === "True";
-
-                // Content for user row
-                const usage = u.usage || 0;
-                const limit = u.transcription_limit || 100;
-
-                const userContent = `
-                    <div style="flex:1">
-                        <div style="font-weight:600">${escapeHtml(u.username)}</div>
-                        <div style="font-size:0.85rem; color:var(--text-muted)">
-                            ${escapeHtml(u.full_name || '-')} • ${escapeHtml(u.email || '-')}
-                        </div>
-                        <div style="font-size:0.8rem; margin-top:4px;">
-                            <span style="background:var(--bg-input); padding:2px 6px; border-radius:4px; border:1px solid var(--border)">
-                                Transcrições: <strong>${usage}</strong> / ${limit}
-                            </span>
-                        </div>
-                    </div>
-                    <div style="display:flex; align-items:center; gap:8px;">
-                        <span style="font-size:0.8rem; padding:2px 8px; border-radius:12px; background:${activeStatus ? 'var(--success)' : 'var(--warning)'}; color:white; opacity:0.8">
-                            ${activeStatus ? 'Ativo' : 'Pendente'}
-                        </span>
-                        ${u.is_admin === "True" ? '<span style="font-size:0.8rem; color:var(--primary); font-weight:bold">Admin</span>' : ''}
-                        
-                        <button class="action-btn" onclick="toggleAdmin('${u.id}', ${u.is_admin === "True"})" title="${u.is_admin === "True" ? 'Remover Admin' : 'Tornar Admin'}">
-                            <i class="ph ${u.is_admin === "True" ? 'ph-shield-slash' : 'ph-shield-check'}"></i>
-                        </button>
-                        <button class="action-btn" onclick="changeLimit('${u.id}', ${limit})" title="Definir Limite">
-                            <i class="ph ph-faders"></i>
-                        </button>
-                        <button class="action-btn" onclick="changePassword('${u.id}')" title="Alterar Senha">
-                            <i class="ph ph-lock-key"></i>
-                        </button>
-                        <button class="action-btn delete" onclick="deleteUser('${u.id}')" title="Excluir Usuário" style="margin-left:8px;">
-                            <i class="ph ph-trash"></i>
-                        </button>
-                    </div>
-                `;
-
-                // All users row
+                const active = u.is_active === "True";
+                // All List
                 const row = document.createElement('div');
                 row.className = 'user-row';
                 row.style.cssText = 'padding:12px; border-bottom:1px solid var(--border); display:flex; justify-content:space-between; align-items:center';
-                row.innerHTML = userContent;
-                allList.appendChild(row);
+                row.innerHTML = `
+                    <div>
+                        <div style="font-weight:600">${escapeHtml(u.username)}</div>
+                        <div style="font-size:0.8rem; color:var(--text-muted)">${escapeHtml(u.full_name)} • ${u.usage}/${u.transcription_limit || 100}</div>
+                    </div>
+                    <div style="display:flex; gap:8px; align-items:center;">
+                         <span style="font-size:0.8rem; padding:2px 8px; border-radius:12px; background:${active ? 'var(--success)' : 'var(--warning)'}; color:white">${active ? 'Ativo' : 'Pendente'}</span>
+                         <button class="action-btn" onclick="toggleAdmin('${u.id}', ${u.is_admin === 'True'})"><i class="ph ${u.is_admin === 'True' ? 'ph-shield-slash' : 'ph-shield-check'}"></i></button>
+                         <button class="action-btn" onclick="changeLimit('${u.id}', ${u.transcription_limit || 100})"><i class="ph ph-faders"></i></button>
+                         <button class="action-btn delete" onclick="deleteUser('${u.id}')"><i class="ph ph-trash"></i></button>
+                    </div>
+                `;
+                aList.appendChild(row);
 
-                // Pending logic (Simplified view for pending list)
-                if (!activeStatus) {
+                // Pending List
+                if (!active) {
                     const pRow = document.createElement('div');
-                    pRow.style.cssText = 'padding:12px; border:1px solid var(--border); border-radius:8px; margin-bottom:8px; display:flex; justify-content:space-between; align-items:center; background:var(--bg-card);';
+                    pRow.style.cssText = 'padding:12px; border:1px solid var(--border); margin-bottom:8px; display:flex; justify-content:space-between; background:var(--bg-card); border-radius:8px';
                     pRow.innerHTML = `
-                        <div>
-                            <strong>${escapeHtml(u.username)}</strong>
-                            <div style="font-size:0.8rem; color:var(--text-muted)">${escapeHtml(u.full_name || '')}</div>
-                        </div>
+                        <strong>${escapeHtml(u.username)}</strong>
                         <div style="display:flex; gap:8px;">
-                             <button class="action-btn" style="background:var(--success); color:white; padding:4px 12px; border-radius:6px;" onclick="approveUser('${u.id}')">Aprovar</button>
-                             <button class="action-btn delete" style="color:var(--danger);" onclick="deleteUser('${u.id}')"><i class="ph ph-trash"></i></button>
+                            <button class="action-btn" style="background:var(--success); color:white; border-radius:4px; padding:4px 8px" onclick="approveUser('${u.id}')">Aprovar</button>
+                            <button class="action-btn delete" onclick="deleteUser('${u.id}')"><i class="ph ph-trash"></i></button>
                         </div>
                     `;
-                    pendingList.appendChild(pRow);
+                    pList.appendChild(pRow);
                 }
             });
-
-            if (pendingList.children.length === 0) pendingList.innerHTML = '<p style="color:var(--text-muted)">Nenhum usuário pendente.</p>';
-
-        } catch (e) {
-            console.error(e);
-            alert('Erro ao carregar usuários');
-        }
+            if (pList.children.length === 0) pList.innerHTML = '<span style="color:var(--text-muted)">Nenhum pendente.</span>';
+        } catch (e) { console.error(e); }
     }
 
+    // Admin Actions (Window)
     window.approveUser = async (id) => {
-        try {
-            const btn = event?.currentTarget;
-            if (btn && btn.tagName === 'BUTTON') btn.textContent = '...';
-
-            await authFetch(`/api/admin/approve/${id}`, { method: 'POST' });
-            loadAdminUsers();
-        } catch (e) { alert('Erro ao aprovar usuário'); }
-    }
-
+        try { await authFetch(`/api/admin/approve/${id}`, { method: 'POST' }); loadAdminUsers(); } catch (e) { alert('Erro'); }
+    };
     window.deleteUser = async (id) => {
-        if (!confirm("Tem certeza que deseja excluir este usuário? Todas as transcrições dele também serão apagadas.")) return;
+        if (!confirm('Excluir usuário?')) return;
+        try { await authFetch(`/api/admin/user/${id}`, { method: 'DELETE' }); loadAdminUsers(); } catch (e) { alert('Erro'); }
+    };
+    window.toggleAdmin = async (id, current) => {
+        if (!confirm(current ? 'Remover admin?' : 'Tornar admin?')) return;
+        try { await authFetch(`/api/admin/user/${id}/toggle-admin`, { method: 'POST' }); loadAdminUsers(); } catch (e) { alert('Erro'); }
+    };
+    window.changeLimit = async (id, current) => {
+        const n = prompt('Novo limite (0 para ilimitado):', current);
+        if (n === null) return; // Cancelled
+        const val = parseInt(n);
+        if (isNaN(val) || val < 0) return alert('Número inválido');
+
         try {
-            const res = await authFetch(`/api/admin/user/${id}`, { method: 'DELETE' });
-            if (!res.ok) {
-                const data = await res.json();
-                throw new Error(data.detail || 'Erro ao excluir');
-            }
+            await authFetch(`/api/admin/user/${id}/limit`, { method: 'POST', body: JSON.stringify({ limit: val }) });
             loadAdminUsers();
-        } catch (e) {
-            alert(e.message);
-        }
-    }
+        } catch (e) { alert('Erro'); }
+    };
 
-    window.changePassword = async (id) => {
-        const newPass = prompt("Digite a nova senha para o usuário:");
-        if (!newPass) return;
-        if (newPass.length < 4) {
-            alert('A senha deve ter pelo menos 4 caracteres.');
-            return;
-        }
-
-        try {
-            await authFetch(`/api/admin/user/${id}/password`, {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ password: newPass })
-            });
-            alert('Senha alterada com sucesso!');
-        } catch (e) { alert('Erro ao alterar senha.'); }
-    }
-
-    window.changeLimit = async (id, currentLimit) => {
-        const newLimit = prompt("Novo limite de transcrições:", currentLimit);
-        if (newLimit === null) return;
-
-        const limitInt = parseInt(newLimit);
-        if (isNaN(limitInt) || limitInt < 0) {
-            alert('Limite inválido.');
-            return;
-        }
-
-        try {
-            await authFetch(`/api/admin/user/${id}/limit`, {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ limit: limitInt })
-            });
-            loadAdminUsers(); // Refresh to show new limit
-        } catch (e) { alert('Erro ao definir limite.'); }
-    }
-
-    window.toggleAdmin = async (id, isCurrentlyAdmin) => {
-        const action = isCurrentlyAdmin ? 'remover privilégios de admin' : 'tornar admin';
-        if (!confirm(`Tem certeza que deseja ${action} deste usuário?`)) return;
-
-        try {
-            const res = await authFetch(`/api/admin/user/${id}/toggle-admin`, { method: 'POST' });
-            if (!res.ok) {
-                const data = await res.json();
-                throw new Error(data.detail || 'Erro ao alterar status');
-            }
-            alert('Status de admin alterado com sucesso!');
-            loadAdminUsers(); // Refresh to show new status
-        } catch (e) {
-            alert(e.message);
-        }
-    }
-
-    // Load User Info (Usage/Limit)
+    // Load User Info
     async function loadUserInfo() {
         try {
             const res = await authFetch('/api/user/info');
             const data = await res.json();
-
-            const usageDisplay = document.getElementById('usage-display');
             if (usageDisplay) {
-                usageDisplay.textContent = `${data.usage} / ${data.limit}`;
-
-                // Optional: Add color coding based on usage percentage
-                const percentage = (data.usage / data.limit) * 100;
-                if (percentage >= 90) {
-                    usageDisplay.style.color = 'var(--danger)';
-                } else if (percentage >= 70) {
-                    usageDisplay.style.color = 'var(--warning)';
-                } else {
+                if (data.limit === 0) {
+                    usageDisplay.textContent = `${data.usage} / ∞`;
                     usageDisplay.style.color = 'var(--success)';
+                } else {
+                    usageDisplay.textContent = `${data.usage} / ${data.limit}`;
+                    const pct = (data.usage / data.limit) * 100;
+                    usageDisplay.style.color = pct >= 90 ? 'var(--danger)' : (pct >= 70 ? 'var(--warning)' : 'var(--success)');
                 }
             }
-        } catch (err) {
-            console.error('Erro ao carregar informações do usuário', err);
-        }
+        } catch (e) { console.error(e); }
     }
 
-    // Default load
+    // Initial Load
     loadHistory();
     loadUserInfo();
-
-    // Utils
-    function escapeHtml(text) {
-        return text.replace(/[&<>"']/g, function (m) { return ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": "&#39;" })[m]; });
-    }
 });

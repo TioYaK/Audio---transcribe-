@@ -17,7 +17,7 @@ class TranscriptionTask(Base):
     result_text = Column(Text, nullable=True)
     language = Column(String, nullable=True)
     duration = Column(Float, nullable=True)
-    duration = Column(Float, nullable=True)
+    progress = Column(Integer, default=0, nullable=False)
     processing_time = Column(Float, nullable=True)
     analysis_status = Column(String, default="Pendente de análise", nullable=True)
     owner_id = Column(String, nullable=True) # ForeignKey to User.id (as string uuid)

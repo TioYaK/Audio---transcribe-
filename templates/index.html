@@ -31,9 +31,18 @@
                     <i class="ph ph-squares-four"></i>
                     <span>Dashboard</span>
                 </a>
+                </a>
                 <a href="#" class="nav-item" id="report-link">
                     <i class="ph ph-chart-pie-slice"></i>
                     <span>Relatórios</span>
+                </a>
+                <a href="#" class="nav-item" id="join-qld-link">
+                    <i class="ph ph-files"></i>
+                    <span>Juntar (QLD)</span>
+                </a>
+                <a href="#" class="nav-item" id="join-cap-link">
+                    <i class="ph ph-files"></i>
+                    <span>Juntar (CAP)</span>
                 </a>
                 <a href="#" class="nav-item hidden" id="admin-link">
                     <i class="ph ph-shield-check"></i>
@@ -59,8 +68,7 @@
             <div id="dashboard-view">
                 <div class="header-bar">
                     <div class="page-title">
-                        <h1>Dashboard</h1>
-                        <p>Gerencie suas transcrições de áudio</p>
+                        <!-- Removed Title/Desc as requested -->
                     </div>
                     <div id="user-limit-badge"
                         style="display: flex; align-items: center; gap: 8px; padding: 8px 16px; background: var(--bg-card); border: 1px solid var(--border); border-radius: 12px;">
@@ -74,58 +82,112 @@
                     </div>
                 </div>
 
-                <!-- Upload Section -->
-                <div class="glass-card">
-                    <div class="upload-zone" id="upload-zone">
-                        <i class="ph ph-cloud-arrow-up upload-icon-large"></i>
-                        <h3>Arraste e solte seus arquivos</h3>
-                        <p style="color:var(--text-muted); margin-bottom: 20px;">Ou clique para selecionar (MP3, WAV,
-                            M4A...)</p>
-                        <button class="btn-upload-trigger">Selecionar Arquivos</button>
-                        <input type="file" id="file-input" multiple hidden
-                            accept=".mp3,.wav,.m4a,.ogg,.webm,.flac,.opus,.ptt">
+                <!-- Upload Area -->
+                <div class="upload-container" id="upload-zone">
+                    <input type="file" id="file-input" multiple hidden accept="audio/*,video/*">
+                    <div class="upload-icon-wrapper">
+                        <i class="ph ph-cloud-arrow-up"></i>
                     </div>
+                    <h3 style="margin-bottom:8px; font-weight:600">Arraste seus arquivos</h3>
+                    <p style="color:var(--text-muted); margin-bottom:24px">ou clique para selecionar</p>
+                    <button class="btn-primary btn-upload-trigger">
+                        <i class="ph-bold ph-upload-simple"></i>
+                        Selecionar Arquivos
+                    </button>
+                </div>
 
-                    <!-- Live Progress List -->
-                    <div id="status-section" class="status-section hidden">
-                        <h4 style="margin:0 0 12px 0;">Enviando...</h4>
-                        <div id="inprogress-list">
-                            <!-- Progress Items injected here -->
-                        </div>
-                    </div>
+                <!-- Status Section -->
+                <!-- Status Section -->
+                <div id="status-section" class="status-list hidden" style="margin-bottom:32px">
+                    <h3 style="margin-bottom:16px; font-size:1.1rem">Em Processamento</h3>
+                    <div id="inprogress-list"></div>
                 </div>
 
                 <!-- History Section -->
-                <div class="glass-card" style="padding:0; overflow:hidden;">
-                    <div
-                        style="padding: 24px; border-bottom: 1px solid var(--border); display:flex; justify-content:space-between; align-items:center;">
-                        <h3 style="margin:0;">Histórico Recente</h3>
-                        <button class="action-btn" id="btn-clear-history" title="Limpar Histórico">
-                            <i class="ph ph-trash"></i>
-                        </button>
+                <div class="glass-card">
+                    <div class="section-header"
+                        style="display:flex; justify-content:space-between; align-items:center; margin-bottom:16px">
+                        <div style="display:flex; align-items:center; gap:8px">
+                            <i class="ph-fill ph-clock-counter-clockwise"
+                                style="color:var(--primary); font-size:1.2rem"></i>
+                            <h3 style="margin:0">Histórico</h3>
+                        </div>
+                        <button class="action-btn" id="btn-clear-history" title="Limpar Histórico"><i
+                                class="ph ph-trash"></i></button>
                     </div>
 
-                    <div class="table-container">
-                        <table id="history-table">
-                            <thead>
-                                <tr>
-                                    <th>Arquivo</th>
-                                    <th>Data</th>
-                                    <th>Duração</th>
-                                    <th>Status Análise</th>
-                                    <th>Ações</th>
-                                </tr>
-                            </thead>
-                            <tbody id="history-body">
-                                <!-- Items injected here -->
-                            </tbody>
-                        </table>
+                    <div id="empty-state" class="empty-state hidden">
+                        <div class="empty-icon"><i class="ph ph-files"></i></div>
+                        <p>Nenhuma transcrição encontrada</p>
                     </div>
-                    <!-- Empty State -->
-                    <div id="empty-state" class="hidden"
-                        style="padding:40px; text-align:center; color:var(--text-muted);">
-                        <i class="ph ph-ghost" style="font-size:2rem; margin-bottom:8px;"></i>
-                        <p>Nenhuma transcrição encontrada.</p>
+
+                    <table id="history-table" style="width:100%; border-collapse:collapse; margin-top:16px">
+                        <thead>
+                            <tr
+                                style="text-align:left; color:var(--text-muted); font-size:0.85rem; border-bottom:1px solid var(--border)">
+                                <th style="padding:12px; font-weight:500">Arquivo</th>
+                                <th style="padding:12px; font-weight:500">Data</th>
+                                <th style="padding:12px; font-weight:500">Duração</th>
+                                <th style="padding:12px; font-weight:500">Status</th>
+                                <th style="padding:12px; font-weight:500">Ações</th>
+                            </tr>
+                        </thead>
+                        <tbody id="history-body">
+                            <!-- JS renders rows -->
+                        </tbody>
+                    </table>
+                </div>
+
+                <!-- Result Modal -->
+                <div class="modal-overlay" id="result-modal">
+                    <div class="modal-content">
+                        <div class="modal-header">
+                            <!-- Removed 'Detalhes da Transcrição' -->
+                            <button class="action-btn" id="btn-close-modal" style="margin-left:auto;"><i class="ph ph-x"
+                                    style="font-size:1.2rem;"></i></button>
+                        </div>
+                        <div id="result-meta" style="margin-bottom:16px; color:var(--text-muted); font-size:0.9rem;">
+                        </div>
+
+                        <!-- Custom Audio Player -->
+                        <div class="audio-player-container hidden" id="audio-player">
+                            <audio id="audio-element" preload="none"></audio>
+
+                            <button class="player-btn" id="play-pause-btn">
+                                <i class="ph-fill ph-play" id="play-icon"></i>
+                            </button>
+
+                            <span id="current-time" class="time-display">0:00</span>
+
+                            <div class="seek-bar-container" id="seek-container">
+                                <div class="seek-bar-fill" id="seek-fill"></div>
+                            </div>
+
+                            <span id="duration-display" class="time-display">0:00</span>
+
+                            <div class="volume-container">
+                                <i class="ph ph-speaker-high" id="volume-icon"></i>
+                                <div class="volume-slider-wrapper">
+                                    <input type="range" class="volume-slider" id="volume-slider" min="0" max="1"
+                                        step="0.1" value="1">
+                                </div>
+                            </div>
+                        </div>
+
+                        <textarea id="result-text" class="result-textarea" readonly></textarea>
+
+                        <div style="display:flex; justify-content:flex-end; gap:12px;">
+                            <button class="action-btn" id="btn-copy-text" style="border:1px solid var(--border);">
+                                <i class="ph ph-copy"></i> Copiar
+                            </button>
+                            <button class="action-btn" id="btn-download-audio" style="border:1px solid var(--border);">
+                                <i class="ph ph-file-audio"></i> Baixar Áudio
+                            </button>
+                            <button class="btn-upload-trigger" id="btn-download-text"
+                                style="margin:0; font-size:0.9rem;">
+                                Baixar Transcrição
+                            </button>
+                        </div>
                     </div>
                 </div>
             </div>
@@ -135,66 +197,36 @@
                 <div class="header-bar">
                     <div class="page-title">
                         <h1>Relatórios</h1>
-                        <p>Visão geral de desempenho</p>
+                        <p>Estatísticas de performance</p>
                     </div>
                 </div>
-
                 <div class="stats-grid">
                     <div class="stat-card">
-                        <h3>Total Arquivos</h3>
-                        <p id="stat-total">-</p>
-                        <i class="ph ph-files"></i>
+                        <h3>Total</h3>
+                        <p id="stat-total">0</p>
                     </div>
-                    <div class="stat-card proced">
+                    <div class="stat-card">
                         <h3>Procedente</h3>
-                        <p id="stat-proced">-</p>
-                        <i class="ph ph-check-circle"></i>
+                        <p id="stat-proced">0</p>
                     </div>
-                    <div class="stat-card improced">
+                    <div class="stat-card">
                         <h3>Improcedente</h3>
-                        <p id="stat-improced">-</p>
-                        <i class="ph ph-x-circle"></i>
+                        <p id="stat-improced">0</p>
                     </div>
-                    <div class="stat-card pending">
+                    <div class="stat-card">
                         <h3>Pendente</h3>
-                        <p id="stat-pending">-</p>
-                        <i class="ph ph-hourglass"></i>
+                        <p id="stat-pending">0</p>
                     </div>
                 </div>
-
-                <div class="glass-card"
-                    style="margin-top:24px; height: 400px; display:flex; justify-content:center; align-items:center; position:relative;">
+                <div class="glass-card" style="margin-top:24px; padding:24px; height:400px">
                     <canvas id="reportsChart"></canvas>
                 </div>
             </div>
 
             <!-- ADMIN VIEW -->
             <div id="admin-view" class="hidden">
-                <!-- Admin Panel Injected Here -->
+                <!-- JS Populates this -->
             </div>
-        </main>
-    </div>
-
-    <!-- Result Modal -->
-    <div class="modal-overlay" id="result-modal">
-        <div class="modal-content">
-            <div class="modal-header">
-                <h2>Detalhes da Transcrição</h2>
-                <button class="action-btn" id="btn-close-modal"><i class="ph ph-x"
-                        style="font-size:1.2rem;"></i></button>
-            </div>
-            <div id="result-meta" style="margin-bottom:16px; color:var(--text-muted); font-size:0.9rem;"></div>
-            <textarea id="result-text" class="result-textarea" readonly></textarea>
-
-            <div style="display:flex; justify-content:flex-end; gap:12px;">
-                <button class="action-btn" id="btn-copy-text" style="border:1px solid var(--border);">
-                    <i class="ph ph-copy"></i> Copiar
-                </button>
-                <button class="btn-upload-trigger" id="btn-download-text" style="margin:0; font-size:0.9rem;">
-                    Baixar Arquivo
-                </button>
-            </div>
-        </div>
     </div>
 
     <script src="/static/script.js"></script>

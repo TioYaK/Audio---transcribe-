@@ -10,6 +10,7 @@ from typing import List
 from sqlalchemy.orm import Session
 from datetime import timedelta
 from pydantic import BaseModel
+import magic
 
 from .database import engine, get_db, Base
 from . import models, crud, auth
@@ -54,8 +55,45 @@ os.makedirs(UPLOAD_DIR, exist_ok=True)
 from .cleanup import cleanup_old_files
 import asyncio
 
+task_queue: asyncio.Queue = asyncio.Queue()
+# Consumer that processes tasks sequentially
+async def task_consumer():
+    from .database import SessionLocal
+    while True:
+        task_id, file_path = await task_queue.get()
+        db = SessionLocal()
+        task_store = crud.TaskStore(db)
+        
+        # Check if task still exists before processing
+        task = task_store.get_task(task_id)
+        if not task:
+            logger.info(f"Task {task_id} not found (deleted?), skipping.")
+            db.close()
+            task_queue.task_done()
+            continue
+            
+        # Mark as processing and reset progress
+        task_store.update_status(task_id, "processing")
+        task_store.update_progress(task_id, 0)
+        try:
+            # Run blocking transcription in a separate thread
+            loop = asyncio.get_running_loop()
+            await loop.run_in_executor(None, process_transcription, task_id, file_path)
+            
+            task_store.update_progress(task_id, 100)
+        except Exception:
+            task_store.update_progress(task_id, 0)
+        finally:
+            db.close()
+        task_queue.task_done()
+
 @app.on_event("startup")
 async def startup_event():
+    logger.info("Service starting up...")
+    logger.info(f"Model: {settings.WHISPER_MODEL}, Device: {settings.DEVICE}")
+    asyncio.create_task(cleanup_old_files())
+    # Start the queue consumer
+    asyncio.create_task(task_consumer())
     logger.info("Service starting up...")
     logger.info(f"Model: {settings.WHISPER_MODEL}, Device: {settings.DEVICE}")
     asyncio.create_task(cleanup_old_files())
@@ -75,6 +113,25 @@ async def startup_event():
         db.add(new_user)
         db.commit()
         logger.info("Created Admin user with empty password")
+    
+    # Cleanup: Cancel and delete all pending/processing tasks on startup
+    # This ensures a clean slate as requested
+    pending_tasks = db.query(models.TranscriptionTask).filter(
+        models.TranscriptionTask.status.in_(["queued", "processing"])
+    ).all()
+    
+    for task in pending_tasks:
+        logger.info(f"Cleanup: Removing unfinished task {task.task_id} from previous session.")
+        # Attempt to delete file
+        try:
+            if os.path.exists(task.file_path):
+                os.remove(task.file_path)
+        except Exception as e:
+            logger.error(f"Error deleting file for task {task.task_id}: {e}")
+            
+        db.delete(task)
+    
+    db.commit()
 
 
 @app.get("/", response_class=HTMLResponse)
@@ -277,11 +334,12 @@ def process_transcription(task_id: str, file_path: str):
         task_store.update_status(task_id, "failed", error_message=str(e))
     finally:
         background_db.close()
-        if os.path.exists(file_path):
-            try:
-                os.remove(file_path)
-            except Exception as e:
-                logger.warning(f"Error removing file {file_path}: {e}") 
+        # Do not delete file so it can be played/downloaded later
+        # if os.path.exists(file_path):
+        #     try:
+        #         os.remove(file_path)
+        #     except Exception as e:
+        #         logger.warning(f"Error removing file {file_path}: {e}") 
 
 @app.post("/api/upload")
 async def upload_audio(
@@ -296,7 +354,8 @@ async def upload_audio(
     if current_user.is_admin != "True":
         usage = task_store.count_user_tasks(current_user.id)
         limit = current_user.transcription_limit if current_user.transcription_limit is not None else 100
-        if usage >= limit:
+        # If limit is 0, it means unlimited
+        if limit > 0 and usage >= limit:
              raise HTTPException(status_code=403, detail=f"Limite de transcrições atingido ({usage}/{limit}). Contate o admin.")
 
     # 1. Validate file
@@ -331,8 +390,8 @@ async def upload_audio(
         owner_id=current_user.id
     )
     
-    # 4. Start background processing
-    background_tasks.add_task(process_transcription, task.task_id, file_path)
+    # 4. Enqueue task for sequential processing
+    await task_queue.put((task.task_id, file_path))
     
     return {
         "task_id": task.task_id,
@@ -351,9 +410,17 @@ async def get_status(task_id: str, db: Session = Depends(get_db), current_user: 
     if task.owner_id != current_user.id and current_user.is_admin != "True":
          raise HTTPException(status_code=403, detail="Não autorizado")
 
+    # Determine a user‑friendly phase based on the internal status
+    phase_map = {
+        "queued": "queued",
+        "processing": "processing",
+        "completed": "completed",
+        "failed": "failed",
+    }
     response = {
         "task_id": task.task_id,
         "status": task.status,
+        "phase": phase_map.get(task.status, "unknown"),
         "created_at": task.created_at,
     }
     
@@ -414,6 +481,38 @@ async def download_result(task_id: str, db: Session = Depends(get_db), current_u
         media_type="text/plain"
     )
 
+@app.get("/api/audio/{task_id}")
+async def get_audio_file(task_id: str, db: Session = Depends(get_db), current_user: models.User = Depends(auth.get_current_user)):
+    """Stream/Download the original audio file"""
+    task_store = crud.TaskStore(db)
+    task = task_store.get_task(task_id)
+    if not task:
+        raise HTTPException(status_code=404, detail="Tarefa não encontrada")
+        
+    if task.owner_id != current_user.id and current_user.is_admin != "True":
+         raise HTTPException(status_code=403, detail="Não autorizado")
+    
+    if not os.path.exists(task.file_path):
+        raise HTTPException(status_code=404, detail="Arquivo de áudio não encontrado no servidor")
+
+    # Determine media type based on extension with Fallback
+    media_type = "application/octet-stream"
+    try:
+        mime = magic.Magic(mime=True)
+        media_type = mime.from_file(task.file_path)
+    except Exception as e:
+        logger.warning(f"Magic lib failed ({e}), falling back to mimetypes")
+        import mimetypes
+        mt, _ = mimetypes.guess_type(task.file_path)
+        if mt:
+            media_type = mt
+    
+    return FileResponse(
+        path=task.file_path, 
+        filename=task.filename,
+        media_type=media_type
+    )
+
 @app.get("/api/history")
 async def get_history(all: bool = False, db: Session = Depends(get_db), current_user: models.User = Depends(auth.get_current_user)):
     """Get all completed transcriptions. Admins can request all=True."""
@@ -422,11 +521,10 @@ async def get_history(all: bool = False, db: Session = Depends(get_db), current_
     if all and current_user.is_admin == "True":
         return task_store.get_all_tasks_admin()
     
-    # Filter by user (Default)
+    # Filter by user (Default) - Show ALL tasks (including queued/processing) for transparency
     tasks = db.query(models.TranscriptionTask).filter(
-        models.TranscriptionTask.status == "completed",
         models.TranscriptionTask.owner_id == current_user.id
-    ).order_by(models.TranscriptionTask.completed_at.desc()).all()
+    ).order_by(models.TranscriptionTask.created_at.desc()).all()
     
     return [task.to_dict() for task in tasks]
 
@@ -480,7 +578,12 @@ async def get_reports(db: Session = Depends(get_db), current_user: models.User =
 @app.post("/api/history/clear")
 async def clear_history(db: Session = Depends(get_db), current_user: models.User = Depends(auth.get_current_user)):
     task_store = crud.TaskStore(db)
-    deleted = task_store.clear_history(current_user.id)
+    
+    if current_user.is_admin == "True":
+        deleted = task_store.clear_all_history()
+    else:
+        deleted = task_store.clear_history(current_user.id)
+        
     return {"deleted": deleted}
 
 

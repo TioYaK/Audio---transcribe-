@@ -3,6 +3,7 @@ from . import models
 from datetime import datetime
 import uuid
 from typing import Optional, List
+import os
 
 class TaskStore:
     def __init__(self, db: Session):
@@ -12,7 +13,9 @@ class TaskStore:
         task = models.TranscriptionTask(
             filename=filename,
             file_path=file_path,
-            owner_id=owner_id
+            owner_id=owner_id,
+            status="queued",
+            progress=0
         )
         self.db.add(task)
         self.db.commit()
@@ -23,6 +26,15 @@ class TaskStore:
         return self.db.query(models.TranscriptionTask).filter(
             models.TranscriptionTask.task_id == task_id
         ).first()
+
+    def update_progress(self, task_id: str, progress: int):
+        task = self.get_task(task_id)
+        if task:
+            task.progress = progress
+            self.db.commit()
+            self.db.refresh(task)
+        return task
+        return task
 
     def update_status(self, task_id: str, status: str, error_message: str = None):
         task = self.get_task(task_id)
@@ -71,15 +83,29 @@ class TaskStore:
 
     def clear_history(self, owner_id: str):
         self.db.query(models.TranscriptionTask).filter(
-            models.TranscriptionTask.status == "completed",
+            models.TranscriptionTask.status.in_(["completed", "failed"]),
             models.TranscriptionTask.owner_id == owner_id
-        ).delete()
+        ).delete(synchronize_session=False)
+        self.db.commit()
+        self.db.commit()
+        return True
+
+    def clear_all_history(self):
+        """Delete ALL tasks for ALL users (Admin only)"""
+        self.db.query(models.TranscriptionTask).delete(synchronize_session=False)
         self.db.commit()
         return True
 
     def delete_task(self, task_id: str) -> bool:
         task = self.get_task(task_id)
         if task:
+            # Delete file from disk
+            if task.file_path and os.path.exists(task.file_path):
+                try:
+                    os.remove(task.file_path)
+                except OSError:
+                    pass
+            
             self.db.delete(task)
             self.db.commit()
             return True

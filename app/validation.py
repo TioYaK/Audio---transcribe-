@@ -15,6 +15,7 @@ class FileValidator:
         self.allowed_mime_types = set(allowed_mime_types or [
             "audio/mpeg", 
             "audio/wav", 
+            "audio/x-wav",
             "audio/x-m4a",
             "audio/mp4",
             "audio/ogg", 
