@@ -10,6 +10,7 @@
     <!-- Use Phosphor Icons for that futuristic look -->
     <script src="https://cdn.jsdelivr.net/npm/@phosphor-icons/web"></script>
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script src="https://unpkg.com/wavesurfer.js@7" defer></script>
     <link rel="stylesheet" href="/static/style.css?v=3">
 </head>
 
@@ -172,23 +173,19 @@
 
                         <!-- Custom Audio Player -->
                         <div class="audio-player-container hidden" id="audio-player">
-                            <audio id="audio-element" preload="none"></audio>
+                            <!-- Waveform Container -->
+                            <div id="waveform" style="width: 100%; margin-bottom: 12px;"></div>
 
-                            <button class="player-btn" id="play-pause-btn">
-                                <i class="ph-fill ph-play" id="play-icon"></i>
-                            </button>
+                            <div class="controls-row" style="display:flex; align-items:center; gap:16px;">
+                                <button class="player-btn" id="play-pause-btn">
+                                    <i class="ph-fill ph-play" id="play-icon"></i>
+                                </button>
+                                <span id="current-time" class="time-display">0:00</span>
+                                /
+                                <span id="duration-display" class="time-display">0:00</span>
 
-                            <span id="current-time" class="time-display">0:00</span>
-
-                            <div class="seek-bar-container" id="seek-container">
-                                <div class="seek-bar-fill" id="seek-fill"></div>
-                            </div>
-
-                            <span id="duration-display" class="time-display">0:00</span>
-
-                            <div class="volume-container">
-                                <i class="ph ph-speaker-high" id="volume-icon"></i>
-                                <div class="volume-slider-wrapper">
+                                <div class="volume-container" style="margin-left:auto;">
+                                    <i class="ph ph-speaker-high" id="volume-icon"></i>
                                     <input type="range" class="volume-slider" id="volume-slider" min="0" max="1"
                                         step="0.1" value="1">
                                 </div>
@@ -202,7 +199,18 @@
                         </div>
 
                         <div id="tab-content-text" class="tab-content active">
-                            <textarea id="result-text" class="result-textarea" readonly></textarea>
+                            <!-- Search Bar -->
+                            <div style="margin-bottom: 8px; position:relative;">
+                                <i class="ph ph-magnifying-glass"
+                                    style="position: absolute; left: 10px; top: 50%; transform: translateY(-50%); color: var(--text-muted);"></i>
+                                <input type="text" id="transcription-search"
+                                    placeholder="Buscar na transcrição... (Enter para próxima)"
+                                    style="width: 100%; padding: 8px 8px 8px 32px; background: var(--bg-input); border: 1px solid var(--border); border-radius: 6px; color: var(--text);">
+                            </div>
+                            <!-- Rich content div instead of Textarea -->
+                            <div id="result-text" class="result-content"
+                                style="white-space: pre-wrap; height: 300px; overflow-y: auto; background: var(--bg-input); padding: 12px; border-radius: 8px; border: 1px solid var(--border);">
+                            </div>
                         </div>
                         <div id="tab-content-summary" class="tab-content">
                             <div id="result-summary" class="ai-content">
@@ -215,7 +223,7 @@
                             </div>
                         </div>
 
-                        <div style="display:flex; justify-content:flex-end; gap:12px;">
+                        <div style="display:flex; justify-content:flex-end; gap:12px; margin-top:16px;">
                             <button class="action-btn" id="btn-copy-text" style="border:1px solid var(--border);">
                                 <i class="ph ph-copy"></i> Copiar
                             </button>
@@ -288,7 +296,7 @@
             </div>
     </div>
 
-    <script src="/static/script.js?v=19"></script>
+    <script src="/static/script.js?v=20"></script>
 </body>
 
 </html>

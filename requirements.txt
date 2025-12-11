@@ -21,7 +21,6 @@ scikit-learn
 numpy
 requests
 # Audio Enhancement
-noisereduce
-pydub
+# (noisereduce & pydub removed for performance optimization)
 # AI Analysis
 sumy

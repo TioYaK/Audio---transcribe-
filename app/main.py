@@ -126,8 +126,8 @@ async def startup_event():
 
     logger.info(f"Model: {settings.WHISPER_MODEL}, Device: {settings.DEVICE}")
     asyncio.create_task(cleanup_old_files())
-    # Start the queue consumer (Parallelism: 1 - Sequential to prevent OOM/Race)
-    for i in range(1):
+    # Start the queue consumer (Parallelism: 2 - Concurrent Processing)
+    for i in range(2):
         asyncio.create_task(task_consumer())
         logger.info(f"Started task_consumer worker {i+1}")
     
@@ -368,7 +368,11 @@ def process_transcription(task_id: str, file_path: str, options: dict = {}):
         task_store.update_status(task_id, "processing")
         
         start_ts = perf_counter()
-        result = whisper_service.transcribe(file_path, options=options)
+        
+        def update_prog(pct):
+            task_store.update_progress(task_id, pct)
+            
+        result = whisper_service.transcribe(file_path, options=options, progress_callback=update_prog)
         processing_time = perf_counter() - start_ts
         
         # Save Result
@@ -667,22 +671,73 @@ async def export_csv(db: Session = Depends(get_db), current_user: models.User = 
     # Write BOM for Excel UTF-8 compatibility
     output.write('\ufeff')
     
-    # Define columns - result_text MUST be last
-    fieldnames = ['task_id', 'filename', 'status', 'created_at', 'completed_at', 'duration', 'owner_name', 'analysis_status', 'result_text']
+    writer = csv.writer(output, delimiter=';', quoting=csv.QUOTE_MINIMAL)
     
-    writer = csv.DictWriter(output, fieldnames=fieldnames, extrasaction='ignore', delimiter=';')
-    writer.writeheader()
+    # Headers in Portuguese
+    headers = [
+        "ID da Tarefa", 
+        "Nome do Arquivo", 
+        "Status", 
+        "Data de Envio", 
+        "Data de Conclusão", 
+        "Duração (s)", 
+        "Tempo de Processamento (s)", 
+        "Proprietário", 
+        "Status da Análise", 
+        "Resumo IA", 
+        "Tópicos", 
+        "Transcrição Completa"
+    ]
+    
+    # Switch to TAB separation - much safer for copy-pasting into Excel
+    # We use .txt extension so Excel triggers the wizard automatically or handles paste better
+    writer = csv.writer(output, delimiter='\t', quoting=csv.QUOTE_MINIMAL)
+    writer.writerow(headers)
     
     for row in data:
-        # Sanitize text to remove potential interfering characters if needed, but quotes usually handle it
-        # However, newlines in Excel cells within ";" CSVs can be tricky. Quoting handles it.
-        writer.writerow(row)
+        def clean(val, limit=32000):
+            if val is None: return ""
+            s = str(val)
+            # Remove all whitespace chars (tabs, newlines) and replace with space
+            s = " ".join(s.split())
+            # Truncate to Excel Safe Limit (32767 is max, 32000 is safe)
+            if len(s) > limit:
+                return s[:limit] + " [TRUNCADO PELO EXCEL]"
+            return s
+            
+        def fmt_float(val):
+            if val is None: return ""
+            return str(val).replace('.', ',')
+
+        writer.writerow([
+            row.get('task_id', ''),
+            row.get('filename', ''),
+            row.get('status', ''),
+            row.get('created_at', ''),
+            row.get('completed_at', ''),
+            fmt_float(row.get('duration')),
+            fmt_float(row.get('processing_time')),
+            clean(row.get('owner_name', '')),
+            clean(row.get('analysis_status', '')),
+            clean(row.get('summary', '')),
+            clean(row.get('topics', '')),
+            clean(row.get('result_text', ''))
+        ])
         
     output.seek(0)
     
-    filename = f"transcriptions_export_{datetime.utcnow().strftime('%Y%m%d_%H%M%S')}.txt"
+    # Changed filename to .txt which is standard for Tab delimited
+    filename = f"relatorio_transcricoes_{datetime.utcnow().strftime('%Y%m%d_%H%M%S')}.txt"
     
     response = StreamingResponse(iter([output.getvalue()]), media_type="text/plain; charset=utf-8")
+    response.headers["Content-Disposition"] = f"attachment; filename={filename}"
+    return response
+        
+    output.seek(0)
+    
+    filename = f"transcricoes_relatorio_{datetime.utcnow().strftime('%Y%m%d_%H%M%S')}.csv"
+    
+    response = StreamingResponse(iter([output.getvalue()]), media_type="text/csv; charset=utf-8")
     response.headers["Content-Disposition"] = f"attachment; filename={filename}"
     return response
 

@@ -13,7 +13,7 @@ services:
     environment:
       - WHISPER_MODEL=medium
       - DEVICE=cuda
-      - COMPUTE_TYPE=float16
+      - COMPUTE_TYPE=int8_float16
       - MAX_FILE_SIZE_MB=${MAX_FILE_SIZE_MB:-100}
       - ALLOWED_EXTENSIONS=${ALLOWED_EXTENSIONS:-mp3,wav,m4a,ogg,webm,flac}
       - DATABASE_PATH=${DATABASE_PATH:-/app/data/transcriptions.db}

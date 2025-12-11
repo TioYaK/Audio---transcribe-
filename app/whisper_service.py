@@ -1,7 +1,7 @@
 import logging
 import concurrent.futures
 import os
-from faster_whisper import WhisperModel
+from faster_whisper import WhisperModel, BatchedInferencePipeline
 
 # CRITICAL: Patch torchaudio BEFORE any speechbrain imports
 # This must be at module level to work
@@ -29,6 +29,7 @@ class WhisperService:
         self.compute_type = compute_type
         self.model = None
         self._executor = concurrent.futures.ThreadPoolExecutor(max_workers=1)
+        self.embedding_model = None # Cache for Diarization Model
         
         # Load model immediately to fail fast if there are issues
         self.load_model()
@@ -53,95 +54,60 @@ class WhisperService:
             raise e
         
         
-        # Disable Batched Pipeline to save GPU memory (prevents OOM on 8GB GPUs)
-        self.batched_model = None
-        logger.info("Using standard inference (batching disabled to prevent OOM).")
+        # Enable Batched Pipeline if on GPU for massive speedup
+        if self.device == "cuda":
+            try:
+                logger.info("Initializing Batched Inference Pipeline for GPU acceleration...")
+                self.batched_model = BatchedInferencePipeline(model=self.model)
+            except Exception as e:
+                logger.warning(f"Could not initialize Batched Pipeline: {e}. Fallback to standard.")
+                self.batched_model = None
+        else:
+            self.batched_model = None
+            logger.info("Using standard inference (CPU or Batching disabled).")
 
     def enhance_audio(self, input_path: str) -> str:
         """
-        Enhances audio quality:
-        1. Standardize (FFmpeg)
-        2. Remove Noise (noisereduce)
-        3. Remove Silence (pydub)
-        4. Normalize (pydub)
-        Returns path to enhanced file.
+        Enhances audio quality (Optimized for Speed):
+        1. Standardize (FFmpeg) -> 16kHz Mono
+        2. Normalize (FFmpeg loudnorm) - Fast and effective
+        
+        Removed 'noisereduce' and 'pydub' silence removal as they are 
+        CPU bottlenecks. Whisper's native VAD handles silence much faster.
         """
         import subprocess
         import uuid
-        import numpy as np
-        from scipy.io import wavfile
-        import noisereduce as nr
-        from pydub import AudioSegment, effects
-        from pydub.silence import split_on_silence
         
         # Temp paths
-        temp_wav = f"{input_path}_temp_{uuid.uuid4().hex[:6]}.wav"
-        final_output = f"{input_path}_enhanced_{uuid.uuid4().hex[:6]}.wav"
+        final_output = f"{input_path}_opt_{uuid.uuid4().hex[:6]}.wav"
         
         try:
-            logger.info("Starting Audio Enhancement Pipeline...")
+            logger.info("Starting Optimized Audio Pipeline (FFmpeg only)...")
             
-            # 1. Standardize processing (Convert to Mono 16kHz WAV)
-            # We assume input might be mp3/m4a/etc, so we convert to wav first
+            # Single pass FFmpeg: Convert to WAV 16k Mono AND Normalize
+            # -ar 16000: Resample to 16k (Whisper native)
+            # -ac 1: Mono
+            # -af loudnorm: EBU R128 Loudness Normalization (better than peak)
             command = [
                 "ffmpeg", "-y", "-i", input_path,
-                "-ar", "16000", "-ac", "1", 
-                temp_wav
+                "-ar", "16000", 
+                "-ac", "1",
+                "-af", "loudnorm=I=-16:TP=-1.5:LRA=11", 
+                final_output
             ]
+            
+            # Run fast C++ binary
             subprocess.run(command, check=True, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
             
-            # 2. Noise Reduction (Spectral Gating)
-            # Load data
-            rate, data = wavfile.read(temp_wav)
-            # Perform noise reduction
-            # stationary=False (default) assumes noise changes, but for general background hiss, stationary=True is faster/better?
-            # We'll use default with conservative settings to avoid 'underwater' artifact
-            reduced_noise = nr.reduce_noise(y=data, sr=rate, prop_decrease=0.75, n_std_thresh_stationary=1.5)
-            
-            # Write back for Pydub
-            wavfile.write(temp_wav, rate, reduced_noise)
-            
-            # 3. Silence Removal & Normalization
-            audio = AudioSegment.from_wav(temp_wav)
-            
-            # Normalize first (Peak normalization)
-            audio = effects.normalize(audio)
-            
-            # Remove long silences (>800ms)
-            logger.info("Removing silence...")
-            chunks = split_on_silence(
-                audio,
-                min_silence_len=800,
-                silence_thresh=audio.dBFS - 16, # -16dB relative to peak
-                keep_silence=400 # Keep 400ms to sound natural
-            )
-            
-            if chunks:
-                logger.info(f"Silence removal: reduced from {len(audio)}ms to {sum(len(c) for c in chunks)}ms")
-                combined = chunks[0]
-                for chunk in chunks[1:]:
-                    combined += chunk
-                audio = combined
-            else:
-                logger.warning("No logic chunks found after silence split, keeping original.")
-
-            # Final export
-            audio.export(final_output, format="wav")
-            
-            # Cleanup temp
-            if os.path.exists(temp_wav): os.remove(temp_wav)
-            
-            logger.info(f"Audio enhancement complete: {final_output}")
+            logger.info(f"Audio optimization complete: {final_output}")
             return final_output
 
         except Exception as e:
             logger.error(f"Audio enhancement failed: {e}", exc_info=True)
-            # Cleanup
-            if os.path.exists(temp_wav): os.remove(temp_wav)
             return input_path # Fallback to original
 
 
-    def transcribe(self, audio_file_path: str, options: dict = {}) -> dict:
+    def transcribe(self, audio_file_path: str, options: dict = {}, progress_callback: callable = None) -> dict:
         """
         Transcribes audio. Applies preprocessing first.
         options: {'timestamp': bool, 'diarization': bool}
@@ -179,10 +145,29 @@ class WhisperService:
             if hasattr(self, 'batched_model') and self.batched_model:
                  segments, info = self.batched_model.transcribe(final_path, batch_size=16)
             else:
-                 segments, info = self.model.transcribe(final_path, beam_size=5)
+                 # Standard inference
+                 segments, info = self.model.transcribe(
+                     final_path, 
+                     beam_size=5,
+                     language="pt", # Force Portuguese to correct casing/spelling
+                     vad_filter=True, # Remove silence hallucinations
+                     initial_prompt="Conversa telefônica bancária sobre oferta de título de capitalização Bradesco. Termos: reais, agência, conta, senhor, senhora, autoriza."
+                 )
             
-            # Consume generator
-            segments = list(segments)
+            # Real-time progress tracking
+            collected_segments = []
+            total_duration = info.duration or 1.0 # Avoid division by zero
+            
+            for segment in segments:
+                collected_segments.append(segment)
+                # Update progress
+                if progress_callback:
+                    current_pct = int((segment.end / total_duration) * 100)
+                    # Limit to 99% until fully done
+                    progress_callback(min(99, current_pct))
+                    
+            segments = collected_segments
+            if progress_callback: progress_callback(100)
             
             # 2. Diarization
             speaker_labels = [0] * len(segments)
@@ -217,9 +202,6 @@ class WhisperService:
                     else:
                         spk_tag = f"[Pessoa {spk_idx + 1}]"
                 
-                # DEBUG: Log first segment to verify logic
-                if i == 0:
-                    logger.info(f"First segment: use_timestamp={use_timestamp}, mm={mm}, ss={ss}, time_str='{time_str}', spk_tag='{spk_tag}'")
                 # Combine parts: [Time] [Speaker]: Text
                 # Filter empty parts
                 parts = [p for p in [time_str, spk_tag] if p]
@@ -270,12 +252,15 @@ class WhisperService:
             # Force CPU for embedding model to prevent OOM
             run_opts = {"device": "cpu"} 
             
-            logger.info(f"Loading SpeechBrain embedding model on CPU...")
-            classifier = EncoderClassifier.from_hparams(
-                source="speechbrain/spkrec-ecapa-voxceleb", 
-                savedir="/root/.cache/speechbrain_checkpoints",
-                run_opts=run_opts
-            )
+            # Load model only if not cached
+            if not self.embedding_model:
+                logger.info(f"Loading SpeechBrain embedding model on CPU (First run)...")
+                self.embedding_model = EncoderClassifier.from_hparams(
+                    source="speechbrain/spkrec-ecapa-voxceleb", 
+                    savedir="/root/.cache/speechbrain_checkpoints",
+                    run_opts=run_opts
+                )
+            classifier = self.embedding_model
 
             # Load full audio using soundfile directly (bypass torchaudio backend issues)
             import soundfile as sf
@@ -405,6 +390,7 @@ class WhisperService:
     def generate_analysis(self, text: str) -> dict:
         """
         Generates summary and topics using local NLP (Sumy + Scikit-learn).
+        Enhanced for Banking/Telemarketing context (Bradesco, Capitalização).
         """
         logger.info(f"Starting AI Analysis. Text length: {len(text) if text else 0}")
         if not text or len(text) < 50:
@@ -415,9 +401,11 @@ class WhisperService:
             # Lazy imports
             logger.info("Importing NLP libraries...")
             import nltk
+            import re
             from sumy.parsers.plaintext import PlaintextParser
             from sumy.nlp.tokenizers import Tokenizer
-            from sumy.summarizers.lsa import LsaSummarizer
+            # Switch to LexRank - usually better for key sentence extraction in conversations
+            from sumy.summarizers.lex_rank import LexRankSummarizer 
             from sumy.nlp.stemmers import Stemmer
             from sumy.utils import get_stop_words
             from sklearn.feature_extraction.text import TfidfVectorizer
@@ -438,28 +426,78 @@ class WhisperService:
 
             LANGUAGE = "portuguese"
             
-            # 1. Summary (LSA)
-            logger.info("Generating Summary (LSA)...")
+            # --- 1. Hybrid Context-Aware Summary ---
+            logger.info("Generating Summary (LexRank + KW)...")
             parser = PlaintextParser.from_string(text, Tokenizer(LANGUAGE))
             stemmer = Stemmer(LANGUAGE)
-            summarizer = LsaSummarizer(stemmer)
+            summarizer = LexRankSummarizer(stemmer)
             summarizer.stop_words = get_stop_words(LANGUAGE)
             
-            summary_sentences = summarizer(parser.document, 3) # Top 3
-            summary = " ".join([str(s) for s in summary_sentences])
+            # A. Standard Extraction (Stats)
+            # Increase count slightly to 4
+            lex_sentences = summarizer(parser.document, 4)
+            final_sentences = list(lex_sentences)
+            
+            # B. Critical Context Injection (Heuristic)
+            # Look for specific transactional sentences often missed by LSA/LexRank
+            critical_keywords = [
+                "bradesco", "capitalização", "título", "sorteio", 
+                "autoriza", "confirma", "valor", "reais", "desconto", 
+                "parcela", "seguro", "proposta", "aceito", "não quero"
+            ]
+            
+            # Get all sentences from document to scan
+            # (parser.document.sentences returns a tuple of sentences)
+            all_sentences = [s for s in parser.document.sentences]
+            
+            # Heuristic: Find first 2 sentences containing critical keywords that aren't already in summary
+            added_critical = 0
+            existing_indices = {s._text for s in final_sentences} # Use text hash or content
+            
+            for sent in all_sentences:
+                if added_critical >= 2: break # Limit extras
+                txt_lower = sent._text.lower()
+                
+                # Check for currency specifically (R$ 20,00 etc)
+                has_money = bool(re.search(r'r\$\s?\d+', txt_lower))
+                
+                if has_money or any(k in txt_lower for k in critical_keywords):
+                    if sent._text not in existing_indices:
+                        # Append to explicit list
+                        final_sentences.append(sent)
+                        existing_indices.add(sent._text)
+                        added_critical += 1
+            
+            # Sort sentences by appearance order to maintain conversation flow
+            # Sumy sentences have no simple index, but we can match with original list
+            # Optim: fast mapping
+            sent_map = {s._text: i for i, s in enumerate(all_sentences)}
+            final_sentences.sort(key=lambda s: sent_map.get(s._text, 0))
+
+            summary = " ".join([str(s) for s in final_sentences])
             logger.info(f"Summary generated: {summary[:50]}...")
             
-            # 2. Topics (TF-IDF Keywords)
+            # --- 2. Topics (TF-IDF) ---
             logger.info("Extracting Topics (TF-IDF)...")
             pt_stopwords = nltk.corpus.stopwords.words('portuguese')
-            # Add common Filler words
-            pt_stopwords.extend(['então', 'assim', 'aí', 'coisa', 'gente', 'né', 'tá'])
+            # Add fillers and common verbiage
+            pt_stopwords.extend([
+                'então', 'assim', 'aí', 'coisa', 'gente', 'né', 'tá', 'bom', 'sim', 'não',
+                'pode', 'vamos', 'agora', 'senhor', 'senhora', 'falar', 'ligação'
+            ])
             
-            vectorizer = TfidfVectorizer(stop_words=pt_stopwords, max_features=8)
-            vectorizer.fit_transform([text])
-            feature_names = vectorizer.get_feature_names_out()
+            # Boost specific domain words in vectorizer? 
+            # TF-IDF naturally handles frequent words, but we can ensure max_features captures enough
+            vectorizer = TfidfVectorizer(stop_words=pt_stopwords, max_features=10) # Increased to 10
             
-            topics = ", ".join(feature_names)
+            try:
+                vectorizer.fit_transform([text])
+                feature_names = vectorizer.get_feature_names_out()
+                topics = ", ".join(feature_names)
+            except ValueError:
+                # Can happen if empty vocab after stop words
+                topics = "Sem tópicos relevantes"
+                
             logger.info(f"Topics extracted: {topics}")
             
             return {"summary": summary, "topics": topics}

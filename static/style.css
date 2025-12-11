@@ -1,5 +1,12 @@
 @import url('https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700&display=swap');
 
+.highlight {
+    background-color: #fde047;
+    color: #000 !important;
+    font-weight: bold;
+    border-radius: 2px;
+}
+
 :root {
     /* Light Theme (Default) */
     --bg-body: #f3f4f6;
@@ -466,6 +473,10 @@ tr:hover td {
     z-index: 100;
     display: none;
     place-items: center;
+}
+
+.modal-overlay.active {
+    display: grid;
 }
 
 .modal-content {
@@ -1310,6 +1321,7 @@ tr:hover td {
     border-radius: 12px;
     border: 1px solid var(--border);
 }
+
 /* AI Analysis Tabs */
 .tabs {
     display: flex;

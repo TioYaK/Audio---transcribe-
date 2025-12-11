@@ -66,7 +66,7 @@ class TaskStore:
             task.processing_time = processing_time
             task.summary = summary
             task.topics = topics
-            task.analysis_status = "Concluido" if summary else "Não processado"
+            task.analysis_status = "Pendente de análise" if summary else "Não processado"
             task.completed_at = datetime.utcnow()
             self.db.commit()
             self.db.refresh(task)
