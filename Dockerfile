@@ -13,6 +13,12 @@ COPY requirements.txt .
 
 RUN pip install --no-cache-dir -r requirements.txt
 
+# Download NLTK data (punkt, punkt_tab, stopwords)
+RUN python -m nltk.downloader punkt punkt_tab stopwords
+
+# Copy sitecustomize.py to patch torchaudio globally
+COPY sitecustomize.py /usr/local/lib/python3.11/site-packages/
+
 # Copy the rest of the application
 COPY . .
 

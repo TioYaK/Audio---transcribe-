@@ -1,22 +1,35 @@
 import os
 import logging
 from typing import List
+from datetime import datetime, timedelta
 
-# Setup logging
-# Setup logging
+# Custom formatter to convert UTC to BRT (UTC-3)
+class BRTFormatter(logging.Formatter):
+    def formatTime(self, record, datefmt=None):
+        # Get UTC time and subtract 3 hours for BRT
+        dt = datetime.fromtimestamp(record.created) - timedelta(hours=3)
+        if datefmt:
+            return dt.strftime(datefmt)
+        return dt.strftime('%Y-%m-%d %H:%M:%S')
+
+# Setup logging with BRT timezone
+formatter = BRTFormatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s')
+
+stream_handler = logging.StreamHandler()
+stream_handler.setFormatter(formatter)
+
+file_handler = logging.FileHandler("/app/data/app.log", mode='a', encoding='utf-8')
+file_handler.setFormatter(formatter)
+
 logging.basicConfig(
     level=logging.INFO,
-    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
-    handlers=[
-        logging.StreamHandler(),
-        logging.FileHandler("/app/data/app.log", mode='a', encoding='utf-8')
-    ]
+    handlers=[stream_handler, file_handler]
 )
 logger = logging.getLogger(__name__)
 
 class Settings:
     def __init__(self):
-        self.WHISPER_MODEL = os.getenv("WHISPER_MODEL", "base")
+        self.WHISPER_MODEL = os.getenv("WHISPER_MODEL", "medium")
         self.DEVICE = os.getenv("DEVICE", "cpu")
         self.COMPUTE_TYPE = os.getenv("COMPUTE_TYPE", "int8")
         

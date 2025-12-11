@@ -56,7 +56,7 @@ class TaskStore:
             self.db.refresh(task)
         return task
 
-    def save_result(self, task_id: str, text: str, language: str, duration: float, processing_time: float):
+    def save_result(self, task_id: str, text: str, language: str, duration: float, processing_time: float, summary: str = None, topics: str = None):
         task = self.get_task(task_id)
         if task:
             task.status = "completed"
@@ -64,6 +64,9 @@ class TaskStore:
             task.language = language
             task.duration = duration
             task.processing_time = processing_time
+            task.summary = summary
+            task.topics = topics
+            task.analysis_status = "Concluido" if summary else "Não processado"
             task.completed_at = datetime.utcnow()
             self.db.commit()
             self.db.refresh(task)
@@ -86,16 +89,58 @@ class TaskStore:
         return task
 
     def clear_history(self, owner_id: str):
+        # Get tasks before deleting to clean up files
+        tasks = self.db.query(models.TranscriptionTask).filter(
+            models.TranscriptionTask.status.in_(["completed", "failed"]),
+            models.TranscriptionTask.owner_id == owner_id
+        ).all()
+        
+        # Delete files
+        for task in tasks:
+            if task.file_path and os.path.exists(task.file_path):
+                try:
+                    os.remove(task.file_path)
+                except OSError:
+                    pass
+            # Delete processed .wav
+            if task.file_path:
+                wav_path = os.path.splitext(task.file_path)[0] + '.wav'
+                if wav_path != task.file_path and os.path.exists(wav_path):
+                    try:
+                        os.remove(wav_path)
+                    except OSError:
+                        pass
+        
+        # Delete from DB
         self.db.query(models.TranscriptionTask).filter(
             models.TranscriptionTask.status.in_(["completed", "failed"]),
             models.TranscriptionTask.owner_id == owner_id
         ).delete(synchronize_session=False)
         self.db.commit()
-        self.db.commit()
         return True
 
     def clear_all_history(self):
         """Delete ALL tasks for ALL users (Admin only)"""
+        # Get all tasks before deleting to clean up files
+        tasks = self.db.query(models.TranscriptionTask).all()
+        
+        # Delete files
+        for task in tasks:
+            if task.file_path and os.path.exists(task.file_path):
+                try:
+                    os.remove(task.file_path)
+                except OSError:
+                    pass
+            # Delete processed .wav
+            if task.file_path:
+                wav_path = os.path.splitext(task.file_path)[0] + '.wav'
+                if wav_path != task.file_path and os.path.exists(wav_path):
+                    try:
+                        os.remove(wav_path)
+                    except OSError:
+                        pass
+        
+        # Delete from DB
         self.db.query(models.TranscriptionTask).delete(synchronize_session=False)
         self.db.commit()
         return True
@@ -103,12 +148,23 @@ class TaskStore:
     def delete_task(self, task_id: str) -> bool:
         task = self.get_task(task_id)
         if task:
-            # Delete file from disk
+            # Delete original file from disk
             if task.file_path and os.path.exists(task.file_path):
                 try:
                     os.remove(task.file_path)
-                except OSError:
-                    pass
+                    logger.info(f"Deleted file: {task.file_path}")
+                except OSError as e:
+                    logger.warning(f"Failed to delete file {task.file_path}: {e}")
+            
+            # Also delete processed .wav file if it exists
+            if task.file_path:
+                wav_path = os.path.splitext(task.file_path)[0] + '.wav'
+                if wav_path != task.file_path and os.path.exists(wav_path):
+                    try:
+                        os.remove(wav_path)
+                        logger.info(f"Deleted processed file: {wav_path}")
+                    except OSError as e:
+                        logger.warning(f"Failed to delete processed file {wav_path}: {e}")
             
             self.db.delete(task)
             self.db.commit()

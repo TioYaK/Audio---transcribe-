@@ -11,7 +11,7 @@ services:
       - uploads:/app/uploads
       - database:/app/data
     environment:
-      - WHISPER_MODEL=${WHISPER_MODEL:-small}
+      - WHISPER_MODEL=medium
       - DEVICE=cuda
       - COMPUTE_TYPE=float16
       - MAX_FILE_SIZE_MB=${MAX_FILE_SIZE_MB:-100}

@@ -199,6 +199,13 @@ document.addEventListener('DOMContentLoaded', () => {
                         <textarea id="admin-keywords-green" class="result-textarea" style="min-height:80px; height:80px; margin-bottom:12px; border-color:var(--success);" placeholder="ex: resolvido, aprovado"></textarea>
 
                         <button class="btn-upload-trigger" onclick="saveKeywords()" style="margin-top:8px;">Salvar Todas</button>
+                        
+                        <hr style="margin: 24px 0; border: none; border-top: 1px solid var(--border);">
+                        
+                        <h4 style="margin-bottom:12px; color:var(--danger);">Zona de Perigo</h4>
+                        <button class="action-btn delete" onclick="adminClearCache()" style="border:1px solid var(--danger); background: var(--bg-card); color: var(--danger);">
+                            <i class="ph ph-trash"></i> Limpar Banco/Cache
+                        </button>
                     </div>
                 </div>`;
         }
@@ -233,6 +240,20 @@ document.addEventListener('DOMContentLoaded', () => {
             await loadKeywords(); // Wait for reload
             showToast('Keywords salvas e atualizadas!', 'ph-check');
         } catch (e) { alert('Erro ao salvar'); }
+    };
+
+    window.adminClearCache = async () => {
+        console.log("adminClearCache called");
+        if (!confirm('ATENÇÃO: Isso apagará TODO o histórico de transcrições do banco de dados.\n\nTem certeza absoluta?')) return;
+        try {
+            console.log("Sending clean request...");
+            await authFetch('/api/history/clear', { method: 'POST' });
+            showToast('Banco de dados limpo!', 'ph-trash');
+            if (typeof loadAdminUsers === 'function') loadAdminUsers();
+        } catch (e) {
+            console.error(e);
+            alert('Erro ao limpar cache: ' + e.message);
+        }
     };
 
     async function showTerminal(e) {
@@ -926,17 +947,46 @@ document.addEventListener('DOMContentLoaded', () => {
                         <button class="action-btn" onclick="window.downloadAudio('${id}')"><i class="ph ph-file-audio"></i> Baixar Áudio</button>
                         <button class="action-btn delete" onclick="deleteTaskFromView(event, '${id}')"><i class="ph ph-trash"></i> Excluir</button>
                     </div>
-                    <div id="full-content" class="chat-container"></div>
+
+                    <div class="tabs">
+                        <button class="tab-btn active" onclick="switchResultTab('text', this)">Transcrição</button>
+                        <button class="tab-btn" onclick="switchResultTab('summary', this)">Resumo IA 🧠</button>
+                        <button class="tab-btn" onclick="switchResultTab('topics', this)">Tópicos 🏷️</button>
+                    </div>
+
+                    <div id="tab-content-text" class="tab-content active">
+                        <div id="full-content" class="chat-container"></div>
+                    </div>
+                    <div id="tab-content-summary" class="tab-content">
+                        <div id="result-summary" class="ai-content" style="white-space: pre-wrap;"></div>
+                    </div>
+                    <div id="tab-content-topics" class="tab-content">
+                        <div id="result-topics" class="ai-content"></div>
+                    </div>
                 </div>
             `;
                 document.querySelector('.main-content').appendChild(fullView);
             }
             fullView.classList.remove('hidden');
 
-            // Setup Player
+            // Populate AI Data
+            const summaryDiv = document.getElementById('result-summary');
+            if (summaryDiv) summaryDiv.textContent = data.summary || "Resumo não disponível. A análise pode ter falhado ou o texto é muito curto.";
+
+            const topicsDiv = document.getElementById('result-topics');
+            if (topicsDiv) {
+                if (data.topics) {
+                    const tags = data.topics.split(',').map(t => `<span class="ai-topic-tag">${escapeHtml(t.trim())}</span>`).join('');
+                    topicsDiv.innerHTML = tags;
+                } else {
+                    topicsDiv.textContent = "Tópicos não disponíveis.";
+                }
+            }
+
+            // Bind player events
             const playerCont = document.getElementById('full-player-container');
             const playBtn = document.getElementById('full-play-btn');
-            const seekCtx = document.getElementById('full-seek');
+            const seek = document.getElementById('full-seek');
             const seekFill = document.getElementById('full-seek-fill');
             const curr = document.getElementById('full-curr-time');
             const dur = document.getElementById('full-dur-time');
@@ -980,7 +1030,7 @@ document.addEventListener('DOMContentLoaded', () => {
             const contentDiv = document.getElementById('full-content');
             contentDiv.innerHTML = '';
 
-            const lines = (data.text || '').split('\n');
+            const lines = (data.text || '').split('\\n');
 
             // Helper to highlight
             function highlightText(text) {
@@ -1041,9 +1091,9 @@ document.addEventListener('DOMContentLoaded', () => {
 
                         msg.className = `chat-msg ${side}`;
                         msg.innerHTML = `
-                            <div class="chat-bubble">${highlightText(text)}</div>
-                            <div class="chat-info">${time} • ${escapeHtml(speaker)}</div>
-                        `;
+                    <div class="chat-bubble">${highlightText(text)}</div>
+                        <div class="chat-info">${time} • ${escapeHtml(speaker)}</div>
+                `;
                         contentDiv.appendChild(msg);
                     } else if (line.trim()) {
                         const msg = document.createElement('div');
@@ -1140,10 +1190,10 @@ document.addEventListener('DOMContentLoaded', () => {
                         <div style="font-size:0.8rem; color:var(--text-muted)">${escapeHtml(u.full_name)} • ${u.usage}/${u.transcription_limit || 100}</div>
                     </div>
                     <div style="display:flex; gap:8px; align-items:center;">
-                         <span style="font-size:0.8rem; padding:2px 8px; border-radius:12px; background:${active ? 'var(--success)' : 'var(--warning)'}; color:white">${active ? 'Ativo' : 'Pendente'}</span>
-                         <button class="action-btn" onclick="toggleAdmin('${u.id}', ${u.is_admin === 'True'})"><i class="ph ${u.is_admin === 'True' ? 'ph-shield-slash' : 'ph-shield-check'}"></i></button>
-                         <button class="action-btn" onclick="changeLimit('${u.id}', ${u.transcription_limit || 100})"><i class="ph ph-faders"></i></button>
-                         <button class="action-btn delete" onclick="deleteUser('${u.id}')"><i class="ph ph-trash"></i></button>
+                        <span style="font-size:0.8rem; padding:2px 8px; border-radius:12px; background:${active ? 'var(--success)' : 'var(--warning)'}; color:white">${active ? 'Ativo' : 'Pendente'}</span>
+                        <button class="action-btn" onclick="toggleAdmin('${u.id}', ${u.is_admin === 'True'})"><i class="ph ${u.is_admin === 'True' ? 'ph-shield-slash' : 'ph-shield-check'}"></i></button>
+                        <button class="action-btn" onclick="changeLimit('${u.id}', ${u.transcription_limit || 100})"><i class="ph ph-faders"></i></button>
+                        <button class="action-btn delete" onclick="deleteUser('${u.id}')"><i class="ph ph-trash"></i></button>
                     </div>
                 `;
                 aList.appendChild(row);
@@ -1153,12 +1203,12 @@ document.addEventListener('DOMContentLoaded', () => {
                     const pRow = document.createElement('div');
                     pRow.style.cssText = 'padding:12px; border:1px solid var(--border); margin-bottom:8px; display:flex; justify-content:space-between; background:var(--bg-card); border-radius:8px';
                     pRow.innerHTML = `
-                        <strong>${escapeHtml(u.username)}</strong>
+                    <strong>${escapeHtml(u.username)}</strong>
                         <div style="display:flex; gap:8px;">
                             <button class="action-btn" style="background:var(--success); color:white; border-radius:4px; padding:4px 8px" onclick="approveUser('${u.id}')">Aprovar</button>
                             <button class="action-btn delete" onclick="deleteUser('${u.id}')"><i class="ph ph-trash"></i></button>
                         </div>
-                    `;
+                `;
                     pList.appendChild(pRow);
                 }
             });
@@ -1230,6 +1280,19 @@ document.addEventListener('DOMContentLoaded', () => {
             loadHistory(showingAllHistory);
             loadUserInfo();
         } catch (e) { alert('Erro ao excluir'); }
+    };
+
+    // --- UI Helpers ---
+    window.switchResultTab = (tabName, btn) => {
+        const parent = btn.closest('.glass-card') || document;
+        // Buttons
+        parent.querySelectorAll('.tab-btn').forEach(el => el.classList.remove('active'));
+        btn.classList.add('active');
+
+        // Content
+        parent.querySelectorAll('.tab-content').forEach(el => el.classList.remove('active'));
+        const target = parent.querySelector(`#tab-content-${tabName}`);
+        if (target) target.classList.add('active');
     };
 
 });

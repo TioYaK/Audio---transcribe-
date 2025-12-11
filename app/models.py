@@ -20,6 +20,8 @@ class TranscriptionTask(Base):
     progress = Column(Integer, default=0, nullable=False)
     processing_time = Column(Float, nullable=True)
     analysis_status = Column(String, default="Pendente de análise", nullable=True)
+    summary = Column(Text, nullable=True)
+    topics = Column(Text, nullable=True)
     options = Column(Text, nullable=True)
     owner_id = Column(String, nullable=True) # ForeignKey to User.id (as string uuid)
 
@@ -37,7 +39,10 @@ class TranscriptionTask(Base):
             "duration": self.duration,
             "processing_time": self.processing_time,
             "processing_time": self.processing_time,
+            "processing_time": self.processing_time,
             "analysis_status": self.analysis_status or "Pendente de análise",
+            "summary": self.summary,
+            "topics": self.topics,
             "options": self.options
         }
         if include_text:

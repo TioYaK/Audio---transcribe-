@@ -103,10 +103,31 @@ async def task_consumer():
 @app.on_event("startup")
 async def startup_event():
     logger.info("Service starting up...")
+    
+    # DB Migration Check for new Analysis columns
+    try:
+        from sqlalchemy import text
+        with engine.connect() as conn:
+            # Add summary column if not exists
+            try:
+                conn.execute(text("ALTER TABLE transcription_tasks ADD COLUMN summary TEXT"))
+                logger.info("Migrated DB: Added summary column")
+            except Exception:
+                pass # Column likely exists
+            
+            # Add topics column if not exists
+            try:
+                conn.execute(text("ALTER TABLE transcription_tasks ADD COLUMN topics TEXT"))
+                logger.info("Migrated DB: Added topics column")
+            except Exception:
+                pass # Column likely exists
+    except Exception as e:
+        logger.warning(f"DB Migration check skipped: {e}")
+
     logger.info(f"Model: {settings.WHISPER_MODEL}, Device: {settings.DEVICE}")
     asyncio.create_task(cleanup_old_files())
-    # Start the queue consumer (Parallelism: 5)
-    for i in range(5):
+    # Start the queue consumer (Parallelism: 1 - Sequential to prevent OOM/Race)
+    for i in range(1):
         asyncio.create_task(task_consumer())
         logger.info(f"Started task_consumer worker {i+1}")
     
@@ -349,27 +370,25 @@ def process_transcription(task_id: str, file_path: str, options: dict = {}):
         start_ts = perf_counter()
         result = whisper_service.transcribe(file_path, options=options)
         processing_time = perf_counter() - start_ts
-
+        
+        # Save Result
         task_store.save_result(
-            task_id, 
-            text=result["text"], 
-            language=result["language"], 
-            duration=result["duration"],
-            processing_time=processing_time
+            task_id=task_id,
+            text=result.get("text", ""),
+            language=result.get("language", "unknown"),
+            duration=result.get("duration", 0.0),
+            processing_time=processing_time,
+            summary=result.get("summary"),
+            topics=result.get("topics")
         )
         logger.info(f"Task {task_id} completed successfully.")
-        
+
     except Exception as e:
         logger.error(f"Task {task_id} failed: {e}")
         task_store.update_status(task_id, "failed", error_message=str(e))
     finally:
         background_db.close()
-        # Do not delete file so it can be played/downloaded later
-        # if os.path.exists(file_path):
-        #     try:
-        #         os.remove(file_path)
-        #     except Exception as e:
-        #         logger.warning(f"Error removing file {file_path}: {e}") 
+        # Do not delete file so it can be played/downloaded later 
 
 @app.post("/api/upload")
 async def upload_audio(
@@ -490,7 +509,9 @@ async def get_result(task_id: str, db: Session = Depends(get_db), current_user: 
         "duration": task.duration,
         "processing_time": task.processing_time,
         "filename": task.filename,
-        "completed_at": task.completed_at
+        "completed_at": task.completed_at,
+        "summary": task.summary,
+        "topics": task.topics
     }
 
 @app.get("/api/download/{task_id}")

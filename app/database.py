@@ -5,9 +5,13 @@ import os
 DATABASE_PATH = os.getenv("DATABASE_PATH", "/app/data/transcriptions.db")
 DATABASE_URL = f"sqlite:///{DATABASE_PATH}"
 
-# specific configuration for sqlite to work well with persistent files and threads
+# Increased pool size to handle concurrent requests
 engine = create_engine(
-    DATABASE_URL, connect_args={"check_same_thread": False}
+    DATABASE_URL, 
+    connect_args={"check_same_thread": False},
+    pool_size=20,
+    max_overflow=40,
+    pool_timeout=60
 )
 
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
