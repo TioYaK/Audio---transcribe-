@@ -1,12 +1,13 @@
-from fastapi import FastAPI, UploadFile, File, Form, HTTPException, Depends, BackgroundTasks, status
+from fastapi import FastAPI, UploadFile, File, Form, HTTPException, Depends, BackgroundTasks, status, Request
 from fastapi.staticfiles import StaticFiles
 from fastapi.responses import HTMLResponse, FileResponse, JSONResponse
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.middleware.gzip import GZipMiddleware
 from fastapi.security import OAuth2PasswordRequestForm
 import shutil
 import os
 import uuid
-from typing import List
+from typing import List, Optional
 from sqlalchemy.orm import Session
 from datetime import timedelta, datetime
 from pydantic import BaseModel
@@ -22,19 +23,37 @@ from .database import engine, get_db, Base
 from . import models, crud, auth
 from .validation import FileValidator
 from .whisper_service import WhisperService
+from . import schemas  # Import new schemas
 
 from .config import settings, logger
 from time import perf_counter
+from slowapi import Limiter, _rate_limit_exceeded_handler
+from slowapi.util import get_remote_address
+from slowapi.errors import RateLimitExceeded
 
 # Create database tables
 models.Base.metadata.create_all(bind=engine)
 
 app = FastAPI(title="Careca.ai")
 
-# CORS configuration
+# Rate limiting
+limiter = Limiter(key_func=get_remote_address)
+app.state.limiter = limiter
+app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
+
+# Centralized Exception Handler
+@app.exception_handler(Exception)
+async def global_exception_handler(request, exc: Exception):
+    logger.error(f"Unhandled exception on {request.url}: {exc}", exc_info=True)
+    return JSONResponse(
+        status_code=500,
+        content={"detail": "Internal server error", "error_id": str(uuid.uuid4())}
+    )
+
+# CORS configuration - use from environment
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
+    allow_origins=settings.ALLOWED_ORIGINS,
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -50,10 +69,6 @@ whisper_service = WhisperService(
     compute_type=settings.COMPUTE_TYPE
 )
 
-validator = FileValidator(
-    allowed_extensions=settings.ALLOWED_EXTENSIONS,
-    max_size_mb=settings.MAX_FILE_SIZE_MB
-)
 
 UPLOAD_DIR = settings.UPLOAD_DIR
 os.makedirs(UPLOAD_DIR, exist_ok=True)
@@ -102,6 +117,7 @@ async def task_consumer():
 
 @app.on_event("startup")
 async def startup_event():
+    from sqlalchemy import text
     logger.info("Service starting up...")
     
     # DB Migration Check for new Analysis columns
@@ -121,6 +137,13 @@ async def startup_event():
                 logger.info("Migrated DB: Added topics column")
             except Exception:
                 pass # Column likely exists
+            
+            # Add notes column if not exists
+            try:
+                conn.execute(text("ALTER TABLE transcription_tasks ADD COLUMN notes TEXT"))
+                logger.info("Migrated DB: Added notes column")
+            except Exception:
+                pass
     except Exception as e:
         logger.warning(f"DB Migration check skipped: {e}")
 
@@ -140,8 +163,8 @@ async def startup_event():
         new_user = models.User(
             username="admin",
             hashed_password=hashed_pwd,
-            is_active="True",
-            is_admin="True"
+            is_active=True,
+            is_admin=True
         )
         db.add(new_user)
         db.commit()
@@ -178,6 +201,38 @@ async def startup_event():
     
     db.commit()
 
+@app.get("/health")
+async def health_check(db: Session = Depends(get_db)):
+    """Health check endpoint for monitoring and deployment"""
+    try:
+        # Check database
+        db.execute(text("SELECT 1"))
+        db_status = "connected"
+    except Exception as e:
+        logger.error(f"Health check - database error: {e}")
+        return JSONResponse(
+            status_code=503,
+            content={"status": "unhealthy", "database": "down", "error": str(e)}
+        )
+    
+    # Check GPU availability
+    gpu_available = None
+    if settings.DEVICE == "cuda":
+        try:
+            import torch
+            gpu_available = torch.cuda.is_available()
+        except:
+            gpu_available = False
+    
+    return {
+        "status": "healthy",
+        "database": db_status,
+        "gpu_available": gpu_available,
+        "model": settings.WHISPER_MODEL,
+        "device": settings.DEVICE
+    }
+
+
 
 @app.get("/", response_class=HTMLResponse)
 async def read_root():
@@ -196,7 +251,8 @@ async def login_page():
     return "Login page not found."
 
 @app.post("/token")
-async def login_for_access_token(form_data: OAuth2PasswordRequestForm = Depends(), db: Session = Depends(get_db)):
+@limiter.limit("5/minute")
+async def login_for_access_token(request: Request, form_data: OAuth2PasswordRequestForm = Depends(), db: Session = Depends(get_db)):
     user = db.query(models.User).filter(models.User.username == form_data.username).first()
     
     # Special case: admin can login with any password (no password check)
@@ -213,7 +269,7 @@ async def login_for_access_token(form_data: OAuth2PasswordRequestForm = Depends(
             detail="Usuário ou senha incorretos",
             headers={"WWW-Authenticate": "Bearer"},
         )
-    if user.is_active != "True":
+    if not user.is_active:
         raise HTTPException(status_code=400, detail="Conta aguardando aprovação")
         
     access_token_expires = timedelta(minutes=auth.ACCESS_TOKEN_EXPIRE_MINUTES)
@@ -223,7 +279,7 @@ async def login_for_access_token(form_data: OAuth2PasswordRequestForm = Depends(
     return {
         "access_token": access_token, 
         "token_type": "bearer",
-        "is_admin": user.is_admin == "True",
+        "is_admin": user.is_admin,
         "username": user.username
     }
 
@@ -254,7 +310,7 @@ async def register(user: RegisterModel, db: Session = Depends(get_db)):
 @app.get("/api/logs")
 async def get_logs(limit: int = 100, current_user: models.User = Depends(auth.get_current_user)):
     """Get application logs from file"""
-    if current_user.is_admin != "True":
+    if not current_user.is_admin:
         raise HTTPException(status_code=403, detail="Acesso restrito ao Administrador")
     
     log_file = "/app/data/app.log"
@@ -273,7 +329,7 @@ async def get_logs(limit: int = 100, current_user: models.User = Depends(auth.ge
 
 @app.get("/api/admin/users")
 async def get_all_users(db: Session = Depends(get_db), current_user: models.User = Depends(auth.get_current_user)):
-    if current_user.is_admin != "True":
+    if not current_user.is_admin:
         raise HTTPException(status_code=403, detail="Acesso exclusivo para administradores")
     task_store = crud.TaskStore(db)
     users = task_store.get_users()
@@ -296,7 +352,7 @@ async def get_all_users(db: Session = Depends(get_db), current_user: models.User
 
 @app.post("/api/admin/approve/{user_id}")
 async def approve_user(user_id: str, db: Session = Depends(get_db), current_user: models.User = Depends(auth.get_current_user)):
-    if current_user.is_admin != "True":
+    if not current_user.is_admin:
         raise HTTPException(status_code=403, detail="Acesso exclusivo para administradores")
     task_store = crud.TaskStore(db)
     task_store.approve_user(user_id)
@@ -304,7 +360,7 @@ async def approve_user(user_id: str, db: Session = Depends(get_db), current_user
 
 @app.post("/api/admin/user/{user_id}/password")
 async def admin_change_password(user_id: str, payload: dict, db: Session = Depends(get_db), current_user: models.User = Depends(auth.get_current_user)):
-    if current_user.is_admin != "True":
+    if not current_user.is_admin:
         raise HTTPException(status_code=403, detail="Acesso exclusivo para administradores")
         
     new_password = payload.get("password")
@@ -318,7 +374,7 @@ async def admin_change_password(user_id: str, payload: dict, db: Session = Depen
 
 @app.delete("/api/admin/user/{user_id}")
 async def delete_user(user_id: str, db: Session = Depends(get_db), current_user: models.User = Depends(auth.get_current_user)):
-    if current_user.is_admin != "True":
+    if not current_user.is_admin:
         raise HTTPException(status_code=403, detail="Acesso exclusivo para administradores")
     if user_id == current_user.id:
          raise HTTPException(status_code=400, detail="Não é possível excluir sua própria conta de admin")
@@ -346,7 +402,7 @@ async def get_user_info(db: Session = Depends(get_db), current_user: models.User
 
 @app.post("/api/admin/user/{user_id}/toggle-admin")
 async def toggle_admin_status(user_id: str, db: Session = Depends(get_db), current_user: models.User = Depends(auth.get_current_user)):
-    if current_user.is_admin != "True":
+    if not current_user.is_admin:
         raise HTTPException(status_code=403, detail="Acesso exclusivo para administradores")
     if user_id == current_user.id:
          raise HTTPException(status_code=400, detail="Não é possível alterar seu próprio status de admin")
@@ -406,7 +462,7 @@ async def upload_audio(
     task_store = crud.TaskStore(db)
     
     # Check limits if not admin
-    if current_user.is_admin != "True":
+    if not current_user.is_admin:
         usage = task_store.count_user_tasks(current_user.id)
         limit = current_user.transcription_limit if current_user.transcription_limit is not None else 100
         # If limit is 0, it means unlimited
@@ -417,20 +473,19 @@ async def upload_audio(
     head = await file.read(2048)
     await file.seek(0)
     
-    is_valid, error_msg = validator.validate(
-        filename=file.filename,
-        file_size=file.size if file.size else 0,
-        file_content_head=head
-    )
-    
-    if not is_valid:
-        raise HTTPException(status_code=400, detail=error_msg)
+    # Validate file using new FileValidator
+    try:
+        safe_filename, file_size = await FileValidator.validate_file(file)
+    except HTTPException as e:
+        raise e
+    except Exception as e:
+        logger.error(f"File validation error: {e}")
+        raise HTTPException(400, f"Erro na validação do arquivo: {str(e)}")
 
-    # 2. Save file
+    # Save file with validated filename
     task_id = str(uuid.uuid4())
-    ext = file.filename.split(".")[-1]
-    safe_filename = f"{task_id}.{ext}"
-    file_path = os.path.join(UPLOAD_DIR, safe_filename)
+    unique_filename = f"{task_id}_{safe_filename}"
+    file_path = os.path.join(UPLOAD_DIR, unique_filename)
     
     try:
         with open(file_path, "wb") as buffer:
@@ -464,7 +519,7 @@ async def get_status(task_id: str, db: Session = Depends(get_db), current_user: 
         raise HTTPException(status_code=404, detail="Tarefa não encontrada")
     
     # Owner check
-    if task.owner_id != current_user.id and current_user.is_admin != "True":
+    if task.owner_id != current_user.id and not current_user.is_admin:
          raise HTTPException(status_code=403, detail="Não autorizado")
 
     # Determine a user‑friendly phase based on the internal status
@@ -503,7 +558,7 @@ async def get_result(task_id: str, db: Session = Depends(get_db), current_user: 
     if not task:
         raise HTTPException(status_code=404, detail="Tarefa não encontrada")
         
-    if task.owner_id != current_user.id and current_user.is_admin != "True":
+    if task.owner_id != current_user.id and not current_user.is_admin:
          raise HTTPException(status_code=403, detail="Não autorizado")
 
     return {
@@ -525,7 +580,7 @@ async def download_result(task_id: str, db: Session = Depends(get_db), current_u
     if not task:
         raise HTTPException(status_code=404, detail="Tarefa não encontrada")
         
-    if task.owner_id != current_user.id and current_user.is_admin != "True":
+    if task.owner_id != current_user.id and not current_user.is_admin:
          raise HTTPException(status_code=403, detail="Não autorizado")
         
     filename = f"{os.path.splitext(task.filename)[0]}.txt"
@@ -548,7 +603,7 @@ async def get_audio_file(task_id: str, db: Session = Depends(get_db), current_us
     if not task:
         raise HTTPException(status_code=404, detail="Tarefa não encontrada")
         
-    if task.owner_id != current_user.id and current_user.is_admin != "True":
+    if task.owner_id != current_user.id and not current_user.is_admin:
          raise HTTPException(status_code=403, detail="Não autorizado")
     
     if not os.path.exists(task.file_path):
@@ -577,7 +632,7 @@ async def get_history(all: bool = False, db: Session = Depends(get_db), current_
     """Get all completed transcriptions. Admins can request all=True."""
     task_store = crud.TaskStore(db)
     
-    if all and current_user.is_admin == "True":
+    if all and current_user.is_admin:
         return task_store.get_all_tasks_admin()
     
     # Filter by user (Default) - Show ALL tasks (including queued/processing) for transparency
@@ -598,7 +653,7 @@ async def rename_task(task_id: str, payload: dict, db: Session = Depends(get_db)
     task = task_store.get_task(task_id)
     if not task:
         raise HTTPException(status_code=404, detail="Tarefa não encontrada")
-    if task.owner_id != current_user.id and current_user.is_admin != "True":
+    if task.owner_id != current_user.id and not current_user.is_admin:
          raise HTTPException(status_code=403, detail="Não autorizado")
 
     task = task_store.rename_task(task_id, new_name)
@@ -615,7 +670,7 @@ async def update_task_analysis(task_id: str, payload: dict, db: Session = Depend
     task = task_store.get_task(task_id)
     if not task:
         raise HTTPException(status_code=404, detail="Tarefa não encontrada")
-    if task.owner_id != current_user.id and current_user.is_admin != "True":
+    if task.owner_id != current_user.id and not current_user.is_admin:
          raise HTTPException(status_code=403, detail="Não autorizado")
 
     task = task_store.update_analysis_status(task_id, status)
@@ -628,7 +683,7 @@ async def get_reports(db: Session = Depends(get_db), current_user: models.User =
     
     # If admin, fetch global stats (owner_id=None)
     # If user, fetch own stats
-    target_id = None if current_user.is_admin == "True" else current_user.id
+    target_id = None if current_user.is_admin else current_user.id
     
     stats = task_store.get_stats(target_id)
     return stats
@@ -638,7 +693,7 @@ async def get_reports(db: Session = Depends(get_db), current_user: models.User =
 async def clear_history(db: Session = Depends(get_db), current_user: models.User = Depends(auth.get_current_user)):
     task_store = crud.TaskStore(db)
     
-    if current_user.is_admin == "True":
+    if current_user.is_admin:
         deleted = task_store.clear_all_history()
     else:
         deleted = task_store.clear_history(current_user.id)
@@ -655,7 +710,7 @@ async def export_csv(db: Session = Depends(get_db), current_user: models.User = 
     task_store = crud.TaskStore(db)
     
     # Fetch Data
-    if current_user.is_admin == "True":
+    if current_user.is_admin:
         data = task_store.get_all_tasks_admin(include_text=True) # Returns list of dicts with owner_name
     else:
         # Re-use manual fetch logic for clean dicts
@@ -741,13 +796,34 @@ async def export_csv(db: Session = Depends(get_db), current_user: models.User = 
     response.headers["Content-Disposition"] = f"attachment; filename={filename}"
     return response
 
-@app.delete("/api/task/{task_id}")
+class NotesUpdate(BaseModel):
+    notes: str
+
+@app.put("/api/task/{task_id}/notes")
+async def update_notes(
+    task_id: str, 
+    update: NotesUpdate,
+    db: Session = Depends(get_db), 
+    current_user: models.User = Depends(auth.get_current_user)
+):
+    task_store = crud.TaskStore(db)
+    task = task_store.get_task(task_id)
+    if not task:
+        raise HTTPException(status_code=404, detail="Task not found")
+        
+    # Check permission
+    if not current_user.is_admin and task.owner_id != current_user.id:
+        raise HTTPException(status_code=403, detail="Not authorized")
+        
+    task.notes = update.notes
+    db.commit()
+    return {"status": "ok", "notes": task.notes}
 async def delete_task(task_id: str, db: Session = Depends(get_db), current_user: models.User = Depends(auth.get_current_user)):
     task_store = crud.TaskStore(db)
     task = task_store.get_task(task_id)
     if not task:
         raise HTTPException(status_code=404, detail="Tarefa não encontrada")
-    if task.owner_id != current_user.id and current_user.is_admin != "True":
+    if task.owner_id != current_user.id and not current_user.is_admin:
          raise HTTPException(status_code=403, detail="Não autorizado")
 
     if task_store.delete_task(task_id):
@@ -769,7 +845,7 @@ async def get_keywords(db: Session = Depends(get_db)):
 
 @app.post("/api/admin/config/keywords")
 async def update_keywords(config: KeywordsUpdate, db: Session = Depends(get_db), current_user: models.User = Depends(auth.get_current_user)):
-    if current_user.is_admin != "True":
+    if not current_user.is_admin:
         raise HTTPException(status_code=403, detail="Acesso exclusivo para administradores")
         
     task_store = crud.TaskStore(db)

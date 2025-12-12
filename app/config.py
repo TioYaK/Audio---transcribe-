@@ -39,6 +39,10 @@ class Settings:
         self.DATABASE_PATH = os.getenv("DATABASE_PATH", "/app/data/transcriptions.db")
         self.UPLOAD_DIR = os.getenv("UPLOAD_DIR", "/app/uploads")
         self.CLEANUP_AFTER_HOURS = int(os.getenv("CLEANUP_AFTER_HOURS", 24))
+        
+        # Security
+        self.SECRET_KEY = os.getenv("SECRET_KEY")
+        self.ALLOWED_ORIGINS = os.getenv("ALLOWED_ORIGINS", "http://localhost:8000").split(",")
 
     def validate(self):
         if self.MAX_FILE_SIZE_MB <= 0:
@@ -46,6 +50,12 @@ class Settings:
         
         if not self.ALLOWED_EXTENSIONS:
             raise ValueError("ALLOWED_EXTENSIONS cannot be empty")
+        
+        if not self.SECRET_KEY:
+            raise ValueError("SECRET_KEY must be set in environment variables")
+        
+        if len(self.SECRET_KEY) < 32:
+            raise ValueError("SECRET_KEY must be at least 32 characters long")
             
         logger.info("Configuration validated successfully")
 

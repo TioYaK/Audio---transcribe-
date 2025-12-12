@@ -6,9 +6,10 @@ from fastapi.security import OAuth2PasswordBearer
 from fastapi import Depends, HTTPException, status
 from sqlalchemy.orm import Session
 from . import models, database
+from .config import settings
 
 # Config
-SECRET_KEY = "CHANGE_THIS_TO_A_SECURE_SECRET_IN_PRODUCTION" # TODO: Move to env
+SECRET_KEY = settings.SECRET_KEY
 ALGORITHM = "HS256"
 ACCESS_TOKEN_EXPIRE_MINUTES = 300 # 5 hours for convenience
 
@@ -49,7 +50,7 @@ async def get_current_user(token: str = Depends(oauth2_scheme), db: Session = De
     user = db.query(models.User).filter(models.User.username == username).first()
     if user is None:
         raise credentials_exception
-    if user.is_active != "True":
+    if not user.is_active:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="Inactive user"

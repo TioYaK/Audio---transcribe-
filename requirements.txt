@@ -24,3 +24,5 @@ requests
 # (noisereduce & pydub removed for performance optimization)
 # AI Analysis
 sumy
+# Security & Performance
+slowapi

@@ -1,91 +1,113 @@
-import os
-import re
-from typing import List, Tuple
-import magic  # python-magic for MIME type checking
+from fastapi import UploadFile, HTTPException
+import magic
+from .config import settings, logger
 
 class FileValidator:
-    def __init__(
-        self, 
-        allowed_extensions: List[str] = None, 
-        max_size_mb: int = 100,
-        allowed_mime_types: List[str] = None
-    ):
-        self.allowed_extensions = set(ext.lower() for ext in (allowed_extensions or ["mp3", "wav", "m4a", "ogg", "webm", "flac", "opus", "ptt"]))
-        self.max_size_bytes = max_size_mb * 1024 * 1024
-        self.allowed_mime_types = set(allowed_mime_types or [
-            "audio/mpeg", 
-            "audio/wav", 
-            "audio/x-wav",
-            "audio/x-m4a",
-            "audio/mp4",
-            "audio/ogg", 
-            "audio/webm", 
-            "audio/flac", 
-            "application/ogg",
-            "audio/opus",
-            "audio/x-opus"
-        ])
-
-    def validate_filename(self, filename: str) -> Tuple[bool, str]:
-        if not filename:
-            return False, "Filename cannot be empty"
+    """Enhanced file validation with MIME type checking and size limits"""
+    
+    ALLOWED_MIMES = [
+        'audio/mpeg',           # MP3
+        'audio/wav',            # WAV
+        'audio/x-wav',          # WAV alternative
+        'audio/mp4',            # M4A
+        'audio/x-m4a',          # M4A alternative
+        'audio/ogg',            # OGG
+        'audio/webm',           # WEBM
+        'audio/flac',           # FLAC
+        'audio/x-flac',         # FLAC alternative
+        'video/mp4',            # MP4 (video with audio)
+        'application/octet-stream'  # Fallback for some audio files
+    ]
+    
+    @staticmethod
+    async def validate_file(file: UploadFile) -> tuple[str, int]:
+        """
+        Validate uploaded file
+        Returns: (safe_filename, file_size)
+        Raises: HTTPException if validation fails
+        """
         
-        # Check extension
-        ext = filename.split(".")[-1].lower() if "." in filename else ""
-        if ext not in self.allowed_extensions:
-            return False, f"Invalid file extension: .{ext}. Allowed: {', '.join(self.allowed_extensions)}"
+        # 1. Validate extension
+        if not file.filename:
+            raise HTTPException(400, "Nome de arquivo inválido")
         
-        return True, "Valid filename"
-
-    def validate_size(self, file_size: int) -> Tuple[bool, str]:
-        if file_size > self.max_size_bytes:
-            return False, f"File size {file_size / (1024*1024):.2f}MB exceeds limit of {self.max_size_bytes / (1024*1024):.0f}MB"
-        return True, "Valid size"
-
-    def validate_content(self, file_content: bytes) -> Tuple[bool, str]:
-        # Use python-magic to detect mime type from content
+        ext = file.filename.split('.')[-1].lower() if '.' in file.filename else ''
+        if ext not in settings.ALLOWED_EXTENSIONS:
+            raise HTTPException(
+                400, 
+                f"Extensão '{ext}' não permitida. Permitidas: {', '.join(settings.ALLOWED_EXTENSIONS)}"
+            )
+        
+        # 2. Read file content for validation
+        file_content = await file.read(8192)  # Read first 8KB
+        await file.seek(0)  # Reset file pointer
+        
+        # 3. Validate MIME type
         try:
-            mime = magic.Magic(mime=True)
-            detected_mime = mime.from_buffer(file_content[:2048])
+            mime = magic.from_buffer(file_content, mime=True)
+            logger.info(f"File MIME type detected: {mime}")
             
-            if detected_mime not in self.allowed_mime_types:
-                # Some flexibility for application/octet-stream if needed, but strict for now
-                return False, f"Invalid file content type: {detected_mime}"
-            
-            return True, "Valid content"
+            # Some audio files might be detected as octet-stream
+            # Allow them if extension is valid
+            if mime not in FileValidator.ALLOWED_MIMES and mime != 'application/octet-stream':
+                logger.warning(f"Suspicious MIME type: {mime} for extension: {ext}")
+                # Still allow if extension matches
+                if ext not in ['mp3', 'wav', 'm4a', 'ogg', 'webm', 'flac']:
+                    raise HTTPException(
+                        400, 
+                        f"Tipo de arquivo inválido: {mime}. Esperado: arquivo de áudio"
+                    )
         except Exception as e:
-            return False, f"Error validating file content: {str(e)}"
-
-    def sanitize_filename(self, filename: str) -> str:
-        # Keep only alphanumeric, dots, dashes, and underscores
-        name = os.path.basename(filename)
-        # remove strictly invalid characters for filenames
-        clean_name = re.sub(r'[^a-zA-Z0-9._-]', '_', name)
+            logger.error(f"Error detecting MIME type: {e}")
+            # Continue if MIME detection fails but extension is valid
         
-        # Ensure it doesn't start with a dot/dash/underscore if that's an issue (usually fine)
-        # But let's prevent empty names after sanitization
-        if not clean_name:
-            clean_name = "audio_file"
-            
-        return clean_name
-
-    def validate(self, filename: str, file_size: int, file_content_head: bytes = None) -> Tuple[bool, str]:
-        # Order matters: Size -> Extension -> Content (optimistic check)
         
-        # 1. Size
-        valid_size, msg_size = self.validate_size(file_size)
-        if not valid_size:
-            return False, msg_size
-            
-        # 2. Filename/Extension
-        valid_name, msg_name = self.validate_filename(filename)
-        if not valid_name:
-            return False, msg_name
-            
-        # 3. Content (MIME) - optional if head provided
-        if file_content_head:
-            valid_content, msg_content = self.validate_content(file_content_head)
-            if not valid_content:
-                return False, msg_content
-                
-        return True, "File is valid"
+        # 4. Validate file size
+        # Read entire file to get size (UploadFile doesn't support tell/seek properly)
+        await file.seek(0)  # Ensure we're at start
+        content = await file.read()  # Read all content
+        size = len(content)
+        await file.seek(0)  # Reset to start for later use
+        
+        max_size = settings.MAX_FILE_SIZE_MB * 1024 * 1024
+        if size > max_size:
+            raise HTTPException(
+                400, 
+                f"Arquivo muito grande: {size/1024/1024:.1f}MB. Máximo: {settings.MAX_FILE_SIZE_MB}MB"
+            )
+        
+        if size == 0:
+            raise HTTPException(400, "Arquivo vazio")
+        
+        # 5. Sanitize filename
+        safe_filename = FileValidator.sanitize_filename(file.filename)
+        
+        logger.info(f"File validated: {safe_filename}, size: {size/1024/1024:.2f}MB, mime: {mime if 'mime' in locals() else 'unknown'}")
+        
+        return safe_filename, size
+    
+    @staticmethod
+    def sanitize_filename(filename: str) -> str:
+        """Remove dangerous characters from filename"""
+        import re
+        import uuid
+        
+        # Get extension
+        parts = filename.rsplit('.', 1)
+        name = parts[0] if len(parts) > 1 else filename
+        ext = parts[1] if len(parts) > 1 else ''
+        
+        # Remove dangerous characters
+        name = re.sub(r'[^\w\s-]', '', name)
+        name = re.sub(r'[-\s]+', '-', name)
+        name = name.strip('-')
+        
+        # Limit length
+        if len(name) > 200:
+            name = name[:200]
+        
+        # If name is empty after sanitization, use UUID
+        if not name:
+            name = str(uuid.uuid4())[:8]
+        
+        return f"{name}.{ext}" if ext else name

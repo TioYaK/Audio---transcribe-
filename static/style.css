@@ -444,6 +444,28 @@ tr:hover td {
     outline: none;
 }
 
+/* Timestamps & Notes Styles */
+.ts-link {
+    color: var(--primary);
+    cursor: pointer;
+    font-weight: 600;
+    margin-right: 4px;
+    padding: 2px 6px;
+    border-radius: 4px;
+    transition: all 0.2s;
+    background: rgba(99, 102, 241, 0.05);
+}
+
+.ts-link:hover {
+    background: rgba(99, 102, 241, 0.15);
+    text-decoration: none;
+}
+
+textarea.result-textarea {
+    font-family: inherit;
+    line-height: 1.6;
+}
+
 /* Actions */
 .action-btn {
     background: transparent;
@@ -1436,4 +1458,33 @@ tr:hover td {
     min-height: 200px;
     line-height: 1.8;
     color: var(--text-main);
+}
+
+/* Loading Skeletons */
+.skeleton-loader {
+    animation: pulse 1.5s ease-in-out infinite;
+}
+
+@keyframes pulse {
+    0%, 100% { opacity: 1; }
+    50% { opacity: 0.5; }
+}
+
+.skeleton-row {
+    height: 60px;
+    background: linear-gradient(
+        90deg,
+        var(--bg-input) 0%,
+        var(--border) 50%,
+        var(--bg-input) 100%
+    );
+    background-size: 200% 100%;
+    animation: shimmer 1.5s infinite;
+    margin-bottom: 12px;
+    border-radius: 8px;
+}
+
+@keyframes shimmer {
+    0% { background-position: -200% 0; }
+    100% { background-position: 200% 0; }
 }

@@ -95,6 +95,8 @@ class TaskStore:
             models.TranscriptionTask.owner_id == owner_id
         ).all()
         
+        count = len(tasks)
+        
         # Delete files
         for task in tasks:
             if task.file_path and os.path.exists(task.file_path):
@@ -117,12 +119,14 @@ class TaskStore:
             models.TranscriptionTask.owner_id == owner_id
         ).delete(synchronize_session=False)
         self.db.commit()
-        return True
+        return count
 
     def clear_all_history(self):
         """Delete ALL tasks for ALL users (Admin only)"""
         # Get all tasks before deleting to clean up files
         tasks = self.db.query(models.TranscriptionTask).all()
+        
+        count = len(tasks)
         
         # Delete files
         for task in tasks:
@@ -143,7 +147,7 @@ class TaskStore:
         # Delete from DB
         self.db.query(models.TranscriptionTask).delete(synchronize_session=False)
         self.db.commit()
-        return True
+        return count
 
     def delete_task(self, task_id: str) -> bool:
         task = self.get_task(task_id)
@@ -203,7 +207,7 @@ class TaskStore:
     def approve_user(self, user_id):
         user = self.db.query(models.User).filter(models.User.id == user_id).first()
         if user:
-            user.is_active = "True"
+            user.is_active = True
             self.db.commit()
         return user
 
@@ -227,7 +231,7 @@ class TaskStore:
         user = self.db.query(models.User).filter(models.User.id == user_id).first()
         if user:
             # Toggle between "True" and "False" strings
-            user.is_admin = "False" if user.is_admin == "True" else "True"
+            user.is_admin = not user.is_admin
             self.db.commit()
             return True
         return False
@@ -314,3 +318,44 @@ class TaskStore:
             config.value = value
         self.db.commit()
         return config.value
+    
+    # Pagination methods
+    def get_user_tasks_paginated(self, owner_id: str, offset: int, limit: int, include_text: bool = False):
+        """Get user's tasks with pagination"""
+        tasks = self.db.query(models.TranscriptionTask).filter(
+            models.TranscriptionTask.owner_id == owner_id,
+            models.TranscriptionTask.status.in_(["completed", "failed"])
+        ).order_by(
+            models.TranscriptionTask.completed_at.desc()
+        ).offset(offset).limit(limit).all()
+        
+        return [task.to_dict(include_text=include_text) for task in tasks]
+    
+    def get_all_tasks_admin_paginated(self, offset: int, limit: int, include_text: bool = False):
+        """Get all tasks with pagination (admin only)"""
+        results = (
+            self.db.query(models.TranscriptionTask, models.User.full_name, models.User.username)
+            .outerjoin(models.User, models.TranscriptionTask.owner_id == models.User.id)
+            .order_by(models.TranscriptionTask.completed_at.desc())
+            .offset(offset)
+            .limit(limit)
+            .all()
+        )
+        
+        tasks_data = []
+        for task, full_name, username in results:
+            t_dict = task.to_dict(include_text=include_text)
+            t_dict["owner_name"] = full_name or username or "Desconhecido"
+            tasks_data.append(t_dict)
+        return tasks_data
+    
+    def count_all_tasks(self):
+        """Count all tasks"""
+        return self.db.query(models.TranscriptionTask).count()
+    
+    def count_user_completed_tasks(self, owner_id: str):
+        """Count user's completed/failed tasks"""
+        return self.db.query(models.TranscriptionTask).filter(
+            models.TranscriptionTask.owner_id == owner_id,
+            models.TranscriptionTask.status.in_(["completed", "failed"])
+        ).count()

@@ -1,4 +1,4 @@
-from sqlalchemy import Column, String, DateTime, Float, Text, Integer
+from sqlalchemy import Column, String, DateTime, Float, Text, Integer, Boolean, Index
 from datetime import datetime
 from .database import Base
 import uuid
@@ -7,10 +7,10 @@ class TranscriptionTask(Base):
     __tablename__ = "transcription_tasks"
 
     task_id = Column(String, primary_key=True, default=lambda: str(uuid.uuid4()))
-    status = Column(String, nullable=False, default="pending")  # pending, processing, completed, failed
+    status = Column(String, nullable=False, default="pending", index=True)  # pending, processing, completed, failed
     filename = Column(String, nullable=False)
     file_path = Column(String, nullable=False)
-    created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
+    created_at = Column(DateTime, default=datetime.utcnow, nullable=False, index=True)
     started_at = Column(DateTime, nullable=True)
     completed_at = Column(DateTime, nullable=True)
     error_message = Column(Text, nullable=True)
@@ -23,7 +23,15 @@ class TranscriptionTask(Base):
     summary = Column(Text, nullable=True)
     topics = Column(Text, nullable=True)
     options = Column(Text, nullable=True)
-    owner_id = Column(String, nullable=True) # ForeignKey to User.id (as string uuid)
+    notes = Column(Text, nullable=True)
+    owner_id = Column(String, nullable=True, index=True) # ForeignKey to User.id (as string uuid)
+    
+    # Composite indexes for common queries
+    __table_args__ = (
+        Index('idx_owner_status_completed', 'owner_id', 'status', 'completed_at'),
+        Index('idx_status_created', 'status', 'created_at'),
+        Index('idx_owner_created', 'owner_id', 'created_at'),
+    )
 
     def to_dict(self, include_text=False):
         """Helper method to convert model to dictionary for API responses"""
@@ -38,12 +46,11 @@ class TranscriptionTask(Base):
             "language": self.language,
             "duration": self.duration,
             "processing_time": self.processing_time,
-            "processing_time": self.processing_time,
-            "processing_time": self.processing_time,
             "analysis_status": self.analysis_status or "Pendente de análise",
             "summary": self.summary,
             "topics": self.topics,
-            "options": self.options
+            "options": self.options,
+            "notes": self.notes
         }
         if include_text:
             data['result_text'] = self.result_text or ""
@@ -57,8 +64,8 @@ class User(Base):
     hashed_password = Column(String)
     full_name = Column(String, nullable=True)
     email = Column(String, nullable=True)
-    is_active = Column(String, default="False") # Boolean as string for simplicity in SQLite or use Boolean
-    is_admin = Column(String, default="False")
+    is_active = Column(Boolean, default=False)
+    is_admin = Column(Boolean, default=False)
     transcription_limit = Column(Integer, default=30)
 
 class GlobalConfig(Base):
