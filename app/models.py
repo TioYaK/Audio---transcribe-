@@ -1,3 +1,4 @@
+
 from sqlalchemy import Column, String, DateTime, Float, Text, Integer, Boolean, Index
 from datetime import datetime
 from .database import Base
@@ -24,17 +25,18 @@ class TranscriptionTask(Base):
     topics = Column(Text, nullable=True)
     options = Column(Text, nullable=True)
     notes = Column(Text, nullable=True)
-    owner_id = Column(String, nullable=True, index=True) # ForeignKey to User.id (as string uuid)
+    owner_id = Column(String, nullable=True, index=True) # ForeignKey to User.id
+    is_archived = Column(Boolean, default=False, nullable=False, index=True)  # For auto-cleanup
     
-    # Composite indexes for common queries
+    # Composite indexes
     __table_args__ = (
         Index('idx_owner_status_completed', 'owner_id', 'status', 'completed_at'),
         Index('idx_status_created', 'status', 'created_at'),
         Index('idx_owner_created', 'owner_id', 'created_at'),
+        Index('idx_completed_archived', 'completed_at', 'is_archived'),
     )
 
     def to_dict(self, include_text=False):
-        """Helper method to convert model to dictionary for API responses"""
         data = {
             "task_id": self.task_id,
             "status": self.status,
@@ -50,7 +52,8 @@ class TranscriptionTask(Base):
             "summary": self.summary,
             "topics": self.topics,
             "options": self.options,
-            "notes": self.notes
+            "notes": self.notes,
+            "is_archived": self.is_archived if hasattr(self, 'is_archived') else False
         }
         if include_text:
             data['result_text'] = self.result_text or ""
@@ -74,4 +77,15 @@ class GlobalConfig(Base):
     key = Column(String, primary_key=True)
     value = Column(Text, nullable=True)
 
-
+class AnalysisRule(Base):
+    """
+    Dynamic Rules for Business Analysis (Tier 3)
+    """
+    __tablename__ = "analysis_rules"
+    
+    id = Column(String, primary_key=True, default=lambda: str(uuid.uuid4()))
+    name = Column(String, nullable=False) # e.g., "Termos Proibidos"
+    category = Column(String, nullable=False) # 'positive', 'negative', 'critical'
+    keywords = Column(Text, nullable=False) # Comma separated: "cancelar, não quero"
+    is_active = Column(Boolean, default=True)
+    description = Column(Text, nullable=True)

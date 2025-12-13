@@ -7,26 +7,29 @@ from typing import List
 from .config import settings, logger
 from .database import SessionLocal
 from .models import TranscriptionTask
+from . import crud
 
 async def cleanup_old_files():
     """
     Periodically checks for old files and tasks to clean up.
+    Also archives old transcriptions (>30 days) automatically.
     """
     while True:
         try:
             logger.info("Running cleanup task...")
             
-            # Cleanup thresholds
+            # 1. Archive old tasks (>30 days) - they stay in reports but hidden from main listing
+            db = SessionLocal()
+            try:
+                task_store = crud.TaskStore(db)
+                archived_count = task_store.archive_old_tasks(days=30)
+                if archived_count > 0:
+                    logger.info(f"Auto-archived {archived_count} tasks older than 30 days")
+            finally:
+                db.close()
+            
+            # 2. Clean upload directory orphaned files (files not in DB or just old files)
             cleanup_time = datetime.utcnow() - timedelta(hours=settings.CLEANUP_AFTER_HOURS)
-            
-            # Database cleanup (optional: usually we keep metadata effectively forever, but let's say we clean up files)
-            # Strategy: Find completed or failed tasks older than threshold and remove their files.
-            # We might want to keep the DB record but mark file as deleted?
-            # Or just delete everything.
-            # Design doc says "Remove temporary files after configurable period".
-            
-            # 1. Clean upload directory orphaned files (files not in DB or just old files)
-            # Simple approach: Check file modification time.
             now = time.time()
             max_age_seconds = settings.CLEANUP_AFTER_HOURS * 3600
             
@@ -45,11 +48,10 @@ async def cleanup_old_files():
                                 logger.error(f"Error deleting {file_path}: {e}")
             
             if count > 0:
-                logger.info(f"Cleanup finished. Removed {count} files.")
+                logger.info(f"Cleanup finished. Removed {count} orphaned files.")
             
         except Exception as e:
             logger.error(f"Error in cleanup task: {e}")
             
         # Run every hour
         await asyncio.sleep(3600)
-

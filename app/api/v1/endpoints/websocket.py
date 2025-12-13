@@ -1,0 +1,42 @@
+
+from fastapi import APIRouter, WebSocket, WebSocketDisconnect
+import asyncio
+import os
+from app.core.config import logger
+
+router = APIRouter()
+
+@router.websocket("/ws/logs")
+async def websocket_logs(websocket: WebSocket):
+    await websocket.accept()
+    logger.info("WebSocket connected for logs")
+    log_file = "/app/data/app.log"
+    
+    try:
+        # Initial read - send last 20 lines
+        if os.path.exists(log_file):
+            with open(log_file, 'r', encoding='utf-8', errors='ignore') as f:
+                 lines = f.readlines()
+                 for line in lines[-20:]:
+                     await websocket.send_text(line)
+                     
+            # Tail logic
+            f = open(log_file, 'r', encoding='utf-8', errors='ignore')
+            f.seek(0, 2) # Go to end
+            
+            while True:
+                line = f.readline()
+                if line:
+                    await websocket.send_text(line)
+                else:
+                    await asyncio.sleep(0.5)
+        else:
+             await websocket.send_text("Log file not found.")
+             await websocket.close()
+             
+    except WebSocketDisconnect:
+        logger.info("WebSocket disconnected")
+    except Exception as e:
+        logger.error(f"WebSocket error: {e}")
+        try: await websocket.close()
+        except: pass

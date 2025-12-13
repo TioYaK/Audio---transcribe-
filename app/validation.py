@@ -19,10 +19,24 @@ class FileValidator:
         'application/octet-stream'  # Fallback for some audio files
     ]
     
+    # Magic bytes for audio file detection (first few bytes)
+    MAGIC_HEADERS = {
+        b'\xff\xfb': 'audio/mpeg',      # MP3
+        b'\xff\xfa': 'audio/mpeg',      # MP3
+        b'\xff\xf3': 'audio/mpeg',      # MP3
+        b'\xff\xf2': 'audio/mpeg',      # MP3
+        b'ID3': 'audio/mpeg',           # MP3 with ID3 tag
+        b'RIFF': 'audio/wav',           # WAV
+        b'fLaC': 'audio/flac',          # FLAC
+        b'OggS': 'audio/ogg',           # OGG
+    }
+    
     @staticmethod
     async def validate_file(file: UploadFile) -> tuple[str, int]:
         """
-        Validate uploaded file
+        Validate uploaded file - OPTIMIZED VERSION
+        - Only reads first 8KB for MIME detection
+        - Uses seek/tell for file size (no full read required)
         Returns: (safe_filename, file_size)
         Raises: HTTPException if validation fails
         """
@@ -38,37 +52,21 @@ class FileValidator:
                 f"Extensão '{ext}' não permitida. Permitidas: {', '.join(settings.ALLOWED_EXTENSIONS)}"
             )
         
-        # 2. Read file content for validation
-        file_content = await file.read(8192)  # Read first 8KB
-        await file.seek(0)  # Reset file pointer
+        # 2. Read ONLY the header (first 8KB) for MIME detection
+        # This is O(1) memory regardless of file size
+        header = await file.read(8192)
         
-        # 3. Validate MIME type
-        try:
-            mime = magic.from_buffer(file_content, mime=True)
-            logger.info(f"File MIME type detected: {mime}")
-            
-            # Some audio files might be detected as octet-stream
-            # Allow them if extension is valid
-            if mime not in FileValidator.ALLOWED_MIMES and mime != 'application/octet-stream':
-                logger.warning(f"Suspicious MIME type: {mime} for extension: {ext}")
-                # Still allow if extension matches
-                if ext not in ['mp3', 'wav', 'm4a', 'ogg', 'webm', 'flac']:
-                    raise HTTPException(
-                        400, 
-                        f"Tipo de arquivo inválido: {mime}. Esperado: arquivo de áudio"
-                    )
-        except Exception as e:
-            logger.error(f"Error detecting MIME type: {e}")
-            # Continue if MIME detection fails but extension is valid
+        # 3. Get file size using seek/tell on underlying file object
+        # UploadFile.seek() only accepts position, so we use file.file directly
+        # SpooledTemporaryFile supports seek(pos, whence)
+        file.file.seek(0, 2)  # SEEK_END on underlying file
+        size = file.file.tell()
         
+        # Reset to start for later use
+        file.file.seek(0)
+        await file.seek(0)  # Also reset UploadFile position
         
         # 4. Validate file size
-        # Read entire file to get size (UploadFile doesn't support tell/seek properly)
-        await file.seek(0)  # Ensure we're at start
-        content = await file.read()  # Read all content
-        size = len(content)
-        await file.seek(0)  # Reset to start for later use
-        
         max_size = settings.MAX_FILE_SIZE_MB * 1024 * 1024
         if size > max_size:
             raise HTTPException(
@@ -79,10 +77,30 @@ class FileValidator:
         if size == 0:
             raise HTTPException(400, "Arquivo vazio")
         
-        # 5. Sanitize filename
+        # 5. Validate MIME type (using header only)
+        mime = 'unknown'
+        try:
+            mime = magic.from_buffer(header, mime=True)
+            logger.debug(f"File MIME type detected: {mime}")
+            
+            # Some audio files might be detected as octet-stream
+            # Allow them if extension is valid
+            if mime not in FileValidator.ALLOWED_MIMES and mime != 'application/octet-stream':
+                logger.warning(f"Suspicious MIME type: {mime} for extension: {ext}")
+                # Still allow if extension matches known audio formats
+                if ext not in ['mp3', 'wav', 'm4a', 'ogg', 'webm', 'flac']:
+                    raise HTTPException(
+                        400, 
+                        f"Tipo de arquivo inválido: {mime}. Esperado: arquivo de áudio"
+                    )
+        except Exception as e:
+            logger.debug(f"MIME detection fallback: {e}")
+            # Continue if MIME detection fails but extension is valid
+        
+        # 6. Sanitize filename
         safe_filename = FileValidator.sanitize_filename(file.filename)
         
-        logger.info(f"File validated: {safe_filename}, size: {size/1024/1024:.2f}MB, mime: {mime if 'mime' in locals() else 'unknown'}")
+        logger.info(f"File validated: {safe_filename}, size: {size/1024/1024:.2f}MB, mime: {mime}")
         
         return safe_filename, size
     

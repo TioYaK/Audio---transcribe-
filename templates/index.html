@@ -11,7 +11,7 @@
     <script src="https://cdn.jsdelivr.net/npm/@phosphor-icons/web"></script>
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <script src="https://unpkg.com/wavesurfer.js@7" defer></script>
-    <link rel="stylesheet" href="/static/style.css?v=3">
+    <link rel="stylesheet" href="/static/style.css?v={{ cache_bust }}">
 </head>
 
 <body>
@@ -214,6 +214,12 @@
                             </div>
                         </div>
                         <div id="tab-content-summary" class="tab-content">
+                            <div style="display: flex; justify-content: flex-end; margin-bottom: 8px;">
+                                <button class="action-btn" id="btn-regenerate-analysis" onclick="regenerateAnalysis()"
+                                    style="border: 1px solid var(--primary); color: var(--primary); padding: 6px 12px; display: flex; align-items: center; gap: 6px; font-size: 0.85rem;">
+                                    <i class="ph ph-arrows-clockwise"></i> Regenerar Análise
+                                </button>
+                            </div>
                             <div id="result-summary" class="ai-content">
                                 <p style="color:var(--text-muted)">Gerando análise...</p>
                             </div>
@@ -286,12 +292,16 @@
                 <div class="header-bar">
                     <div class="page-title">
                         <div style="display: flex; align-items: center; gap: 12px;">
-                            <div style="width: 48px; height: 48px; background: linear-gradient(135deg, #10b981 0%, #059669 100%); border-radius: 12px; display: flex; align-items: center; justify-content: center; box-shadow: 0 4px 12px rgba(16, 185, 129, 0.3);">
+                            <div
+                                style="width: 48px; height: 48px; background: linear-gradient(135deg, #10b981 0%, #059669 100%); border-radius: 12px; display: flex; align-items: center; justify-content: center; box-shadow: 0 4px 12px rgba(16, 185, 129, 0.3);">
                                 <i class="ph-fill ph-terminal-window" style="font-size: 1.5rem; color: white;"></i>
                             </div>
                             <div>
-                                <h1 style="margin: 0; font-size: 1.5rem; background: linear-gradient(135deg, #10b981 0%, #059669 100%); -webkit-background-clip: text; -webkit-text-fill-color: transparent; background-clip: text;">Terminal do Servidor</h1>
-                                <p style="margin: 0; font-size: 0.85rem; color: var(--text-muted);">Monitoramento em tempo real</p>
+                                <h1
+                                    style="margin: 0; font-size: 1.5rem; background: linear-gradient(135deg, #10b981 0%, #059669 100%); -webkit-background-clip: text; -webkit-text-fill-color: transparent; background-clip: text;">
+                                    Terminal do Servidor</h1>
+                                <p style="margin: 0; font-size: 0.85rem; color: var(--text-muted);">Monitoramento em
+                                    tempo real</p>
                             </div>
                         </div>
                     </div>
@@ -313,23 +323,39 @@
                             style="border:1px solid var(--danger); background: var(--bg-card); color: var(--danger); padding: 8px 14px; display: flex; align-items: center; gap: 6px;">
                             <i class="ph ph-trash"></i> Limpar Cache
                         </button>
-                        <div style="display: flex; align-items: center; gap: 6px; padding: 6px 12px; background: var(--bg-card); border: 1px solid var(--border); border-radius: 8px;">
-                            <div class="pulse-dot" style="width: 8px; height: 8px; background: #10b981; border-radius: 50%; animation: pulse 2s ease-in-out infinite;"></div>
+                        <button class="action-btn" onclick="regenerateAllAnalyses()"
+                            style="border:1px solid var(--primary); background: var(--bg-card); color: var(--primary); padding: 8px 14px; display: flex; align-items: center; gap: 6px;">
+                            <i class="ph ph-arrows-clockwise"></i> Regenerar Análises
+                        </button>
+                        <div
+                            style="display: flex; align-items: center; gap: 6px; padding: 6px 12px; background: var(--bg-card); border: 1px solid var(--border); border-radius: 8px;">
+                            <div class="pulse-dot"
+                                style="width: 8px; height: 8px; background: #10b981; border-radius: 50%; animation: pulse 2s ease-in-out infinite;">
+                            </div>
                             <span style="font-size:0.8rem; color:var(--text-muted)">Auto-refresh (2s)</span>
                         </div>
                     </div>
                 </div>
-                
+
                 <!-- Terminal Window -->
-                <div class="terminal-window" style="background: linear-gradient(135deg, rgba(15, 23, 42, 0.95) 0%, rgba(30, 41, 59, 0.95) 100%); border-radius: 16px; overflow: hidden; box-shadow: 0 20px 60px rgba(0, 0, 0, 0.5), 0 0 0 1px rgba(255, 255, 255, 0.1); backdrop-filter: blur(10px);">
+                <div class="terminal-window"
+                    style="background: linear-gradient(135deg, rgba(15, 23, 42, 0.95) 0%, rgba(30, 41, 59, 0.95) 100%); border-radius: 16px; overflow: hidden; box-shadow: 0 20px 60px rgba(0, 0, 0, 0.5), 0 0 0 1px rgba(255, 255, 255, 0.1); backdrop-filter: blur(10px);">
                     <!-- Terminal Header -->
-                    <div style="background: linear-gradient(135deg, rgba(30, 41, 59, 0.8) 0%, rgba(15, 23, 42, 0.8) 100%); padding: 12px 16px; display: flex; align-items: center; justify-content: space-between; border-bottom: 1px solid rgba(255, 255, 255, 0.1);">
+                    <div
+                        style="background: linear-gradient(135deg, rgba(30, 41, 59, 0.8) 0%, rgba(15, 23, 42, 0.8) 100%); padding: 12px 16px; display: flex; align-items: center; justify-content: space-between; border-bottom: 1px solid rgba(255, 255, 255, 0.1);">
                         <div style="display: flex; align-items: center; gap: 8px;">
-                            <div style="width: 12px; height: 12px; background: #ef4444; border-radius: 50%; box-shadow: 0 0 8px rgba(239, 68, 68, 0.5);"></div>
-                            <div style="width: 12px; height: 12px; background: #f59e0b; border-radius: 50%; box-shadow: 0 0 8px rgba(245, 158, 11, 0.5);"></div>
-                            <div style="width: 12px; height: 12px; background: #10b981; border-radius: 50%; box-shadow: 0 0 8px rgba(16, 185, 129, 0.5);"></div>
+                            <div
+                                style="width: 12px; height: 12px; background: #ef4444; border-radius: 50%; box-shadow: 0 0 8px rgba(239, 68, 68, 0.5);">
+                            </div>
+                            <div
+                                style="width: 12px; height: 12px; background: #f59e0b; border-radius: 50%; box-shadow: 0 0 8px rgba(245, 158, 11, 0.5);">
+                            </div>
+                            <div
+                                style="width: 12px; height: 12px; background: #10b981; border-radius: 50%; box-shadow: 0 0 8px rgba(16, 185, 129, 0.5);">
+                            </div>
                         </div>
-                        <div style="font-family: monospace; font-size: 0.75rem; color: rgba(255, 255, 255, 0.5); letter-spacing: 0.5px;">
+                        <div
+                            style="font-family: monospace; font-size: 0.75rem; color: rgba(255, 255, 255, 0.5); letter-spacing: 0.5px;">
                             careca.ai@server ~ /var/log/app
                         </div>
                         <div style="display: flex; align-items: center; gap: 8px;">
@@ -338,7 +364,7 @@
                             </div>
                         </div>
                     </div>
-                    
+
                     <!-- Terminal Content -->
                     <div id="terminal-output"
                         style="background: transparent; color: #10b981; padding: 20px; font-family: 'Courier New', monospace; height: 600px; overflow-y: auto; white-space: pre-wrap; font-size: 0.85rem; line-height: 1.6; position: relative;">
@@ -347,9 +373,10 @@
                             <span>Carregando logs do servidor...</span>
                         </div>
                     </div>
-                    
+
                     <!-- Terminal Footer -->
-                    <div style="background: linear-gradient(135deg, rgba(30, 41, 59, 0.8) 0%, rgba(15, 23, 42, 0.8) 100%); padding: 8px 16px; display: flex; align-items: center; justify-content: space-between; border-top: 1px solid rgba(255, 255, 255, 0.1); font-family: monospace; font-size: 0.7rem; color: rgba(255, 255, 255, 0.5);">
+                    <div
+                        style="background: linear-gradient(135deg, rgba(30, 41, 59, 0.8) 0%, rgba(15, 23, 42, 0.8) 100%); padding: 8px 16px; display: flex; align-items: center; justify-content: space-between; border-top: 1px solid rgba(255, 255, 255, 0.1); font-family: monospace; font-size: 0.7rem; color: rgba(255, 255, 255, 0.5);">
                         <div style="display: flex; align-items: center; gap: 16px;">
                             <div style="display: flex; align-items: center; gap: 6px;">
                                 <i class="ph ph-clock"></i>
@@ -373,53 +400,82 @@
 
             <style>
                 @keyframes pulse {
-                    0%, 100% { opacity: 1; transform: scale(1); }
-                    50% { opacity: 0.5; transform: scale(1.2); }
+
+                    0%,
+                    100% {
+                        opacity: 1;
+                        transform: scale(1);
+                    }
+
+                    50% {
+                        opacity: 0.5;
+                        transform: scale(1.2);
+                    }
                 }
-                
+
                 @keyframes spin {
-                    from { transform: rotate(0deg); }
-                    to { transform: rotate(360deg); }
+                    from {
+                        transform: rotate(0deg);
+                    }
+
+                    to {
+                        transform: rotate(360deg);
+                    }
                 }
-                
+
                 .terminal-window {
                     margin-top: 16px;
                     transition: all 0.3s ease;
                 }
-                
+
                 .terminal-window:hover {
                     box-shadow: 0 25px 70px rgba(0, 0, 0, 0.6), 0 0 0 1px rgba(16, 185, 129, 0.2);
                 }
-                
+
                 #terminal-output::-webkit-scrollbar {
                     width: 8px;
                 }
-                
+
                 #terminal-output::-webkit-scrollbar-track {
                     background: rgba(15, 23, 42, 0.5);
                     border-radius: 4px;
                 }
-                
+
                 #terminal-output::-webkit-scrollbar-thumb {
                     background: linear-gradient(135deg, #10b981 0%, #059669 100%);
                     border-radius: 4px;
                 }
-                
+
                 #terminal-output::-webkit-scrollbar-thumb:hover {
                     background: linear-gradient(135deg, #059669 0%, #047857 100%);
                 }
-                
+
                 /* Log level colors */
-                .log-info { color: #60a5fa; }
-                .log-warning { color: #fbbf24; }
-                .log-error { color: #ef4444; }
-                .log-success { color: #10b981; }
-                .log-debug { color: #a78bfa; }
+                .log-info {
+                    color: #60a5fa;
+                }
+
+                .log-warning {
+                    color: #fbbf24;
+                }
+
+                .log-error {
+                    color: #ef4444;
+                }
+
+                .log-success {
+                    color: #10b981;
+                }
+
+                .log-debug {
+                    color: #a78bfa;
+                }
             </style>
     </div>
 
     <!-- Main JavaScript -->
-    <script src="/static/script.js?v=21" defer></script>
+    <script src="/static/script.js?v={{ cache_bust }}" defer></script>
+    <script src="/static/rules-manager.js?v={{ cache_bust }}" defer></script>
 </body>
 
 </html>

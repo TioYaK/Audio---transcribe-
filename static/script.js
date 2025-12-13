@@ -48,6 +48,10 @@ document.addEventListener('DOMContentLoaded', () => {
             setTimeout(() => toast.remove(), 500);
         }, 3000);
     }
+    // Expose utilities globally for external scripts (e.g. rules-manager.js)
+    window.authFetch = authFetch;
+    window.showToast = showToast;
+    window.escapeHtml = escapeHtml;
 
     // DOM Elements - Navigation & Views
     const logoutBtn = document.getElementById('logout-btn');
@@ -1373,7 +1377,7 @@ document.addEventListener('DOMContentLoaded', () => {
             const summaryDiv = fullView.querySelector('#result-summary');
             console.log('summaryDiv found:', !!summaryDiv);
             if (summaryDiv) {
-                summaryDiv.textContent = data.summary || "Resumo não disponível. A análise pode ter falhado ou o texto é muito curto.";
+                summaryDiv.textContent = data.summary || "Resumo não disponível. A análise pode ter falhado ou o texto à muito curto.";
                 console.log('Summary set to:', summaryDiv.textContent.substring(0, 50));
             }
 
@@ -1581,7 +1585,7 @@ document.addEventListener('DOMContentLoaded', () => {
             pList.innerHTML = ''; aList.innerHTML = '';
 
             users.forEach(u => {
-                // ✅ Corrigido: suporta tanto boolean quanto string
+                // Ô£à Corrigido: suporta tanto boolean quanto string
                 const active = u.is_active === true || u.is_active === "True";
                 const isAdmin = u.is_admin === true || u.is_admin === "True";
                 const isAdminUser = u.username === 'admin';
@@ -1670,7 +1674,7 @@ document.addEventListener('DOMContentLoaded', () => {
         const n = prompt('Novo limite (0 para ilimitado):', current);
         if (n === null) return; // Cancelled
         const val = parseInt(n);
-        if (isNaN(val) || val < 0) return alert('Número inválido');
+        if (isNaN(val) || val < 0) return alert('Numero inválido');
 
         try {
             await authFetch(`/api/admin/user/${id}/limit`, { method: 'POST', body: JSON.stringify({ limit: val }) });
@@ -1685,7 +1689,7 @@ document.addEventListener('DOMContentLoaded', () => {
             const data = await res.json();
             if (usageDisplay) {
                 if (data.limit === 0 || data.is_admin === "True") {
-                    usageDisplay.textContent = `${data.usage} / ∞`;
+                    usageDisplay.textContent = `${data.usage} / Ôê×`;
                     usageDisplay.style.color = 'var(--success)';
                 } else {
                     usageDisplay.textContent = `${data.usage} / ${data.limit}`;
@@ -1756,3 +1760,4 @@ document.addEventListener('DOMContentLoaded', () => {
     };
 
 });
+

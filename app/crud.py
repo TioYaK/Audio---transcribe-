@@ -4,7 +4,7 @@ from datetime import datetime
 import uuid
 from typing import Optional, List
 import os
-from .config import logger  # ✅ Adicionado: importação do logger
+from app.core.config import logger
 
 
 class TaskStore:
@@ -246,11 +246,14 @@ class TaskStore:
         ).count()
         
     def get_all_tasks_admin(self, include_text: bool = False):
-        # Join User to get owner name
-        # We perform an outer join in case owner was deleted (though cascade should handle it)
+        """Get all completed/failed tasks (excludes processing and archived)"""
         results = (
             self.db.query(models.TranscriptionTask, models.User.full_name, models.User.username)
             .outerjoin(models.User, models.TranscriptionTask.owner_id == models.User.id)
+            .filter(
+                models.TranscriptionTask.status.in_(["completed", "failed"]),
+                models.TranscriptionTask.is_archived == False
+            )
             .order_by(models.TranscriptionTask.completed_at.desc())
             .all()
         )
@@ -323,10 +326,11 @@ class TaskStore:
     
     # Pagination methods
     def get_user_tasks_paginated(self, owner_id: str, offset: int, limit: int, include_text: bool = False):
-        """Get user's tasks with pagination"""
+        """Get user's tasks with pagination (excludes archived)"""
         tasks = self.db.query(models.TranscriptionTask).filter(
             models.TranscriptionTask.owner_id == owner_id,
-            models.TranscriptionTask.status.in_(["completed", "failed"])
+            models.TranscriptionTask.status.in_(["completed", "failed"]),
+            models.TranscriptionTask.is_archived == False  # Exclude archived
         ).order_by(
             models.TranscriptionTask.completed_at.desc()
         ).offset(offset).limit(limit).all()
@@ -334,10 +338,11 @@ class TaskStore:
         return [task.to_dict(include_text=include_text) for task in tasks]
     
     def get_all_tasks_admin_paginated(self, offset: int, limit: int, include_text: bool = False):
-        """Get all tasks with pagination (admin only)"""
+        """Get all tasks with pagination (admin only, excludes archived)"""
         results = (
             self.db.query(models.TranscriptionTask, models.User.full_name, models.User.username)
             .outerjoin(models.User, models.TranscriptionTask.owner_id == models.User.id)
+            .filter(models.TranscriptionTask.is_archived == False)  # Exclude archived
             .order_by(models.TranscriptionTask.completed_at.desc())
             .offset(offset)
             .limit(limit)
@@ -352,12 +357,59 @@ class TaskStore:
         return tasks_data
     
     def count_all_tasks(self):
-        """Count all tasks"""
-        return self.db.query(models.TranscriptionTask).count()
+        """Count all non-archived tasks"""
+        return self.db.query(models.TranscriptionTask).filter(
+            models.TranscriptionTask.is_archived == False
+        ).count()
     
     def count_user_completed_tasks(self, owner_id: str):
-        """Count user's completed/failed tasks"""
+        """Count user's completed/failed non-archived tasks"""
         return self.db.query(models.TranscriptionTask).filter(
             models.TranscriptionTask.owner_id == owner_id,
-            models.TranscriptionTask.status.in_(["completed", "failed"])
+            models.TranscriptionTask.status.in_(["completed", "failed"]),
+            models.TranscriptionTask.is_archived == False
         ).count()
+    
+    def archive_old_tasks(self, days: int = 30) -> int:
+        """Archive tasks older than X days (default: 30). 
+        Archived tasks are excluded from main listing but included in reports.
+        Also deletes the audio files to save disk space."""
+        from datetime import timedelta
+        
+        cutoff_date = datetime.utcnow() - timedelta(days=days)
+        
+        # Get tasks to archive
+        tasks_to_archive = self.db.query(models.TranscriptionTask).filter(
+            models.TranscriptionTask.completed_at < cutoff_date,
+            models.TranscriptionTask.status.in_(["completed", "failed"]),
+            models.TranscriptionTask.is_archived == False
+        ).all()
+        
+        count = len(tasks_to_archive)
+        
+        for task in tasks_to_archive:
+            # Delete audio files to save disk space
+            if task.file_path and os.path.exists(task.file_path):
+                try:
+                    os.remove(task.file_path)
+                    logger.info(f"Archived: Deleted audio file {task.file_path}")
+                except OSError as e:
+                    logger.warning(f"Failed to delete file during archiving: {e}")
+            
+            # Delete processed .wav
+            if task.file_path:
+                wav_path = os.path.splitext(task.file_path)[0] + '.wav'
+                if wav_path != task.file_path and os.path.exists(wav_path):
+                    try:
+                        os.remove(wav_path)
+                    except OSError:
+                        pass
+            
+            # Clear file_path since file is deleted
+            task.file_path = None
+            # Mark as archived
+            task.is_archived = True
+        
+        self.db.commit()
+        logger.info(f"Archived {count} tasks older than {days} days")
+        return count

@@ -59,7 +59,6 @@
 
 * {
     box-sizing: border-box;
-    transition: background-color 0.3s ease, border-color 0.3s ease, color 0.3s ease;
 }
 
 body {
@@ -779,6 +778,7 @@ textarea.result-textarea {
     width: 70px;
     height: 4px;
     -webkit-appearance: none;
+    appearance: none;
     background: var(--bg-input);
     border-radius: 2px;
     outline: none;
@@ -1466,18 +1466,23 @@ textarea.result-textarea {
 }
 
 @keyframes pulse {
-    0%, 100% { opacity: 1; }
-    50% { opacity: 0.5; }
+
+    0%,
+    100% {
+        opacity: 1;
+    }
+
+    50% {
+        opacity: 0.5;
+    }
 }
 
 .skeleton-row {
     height: 60px;
-    background: linear-gradient(
-        90deg,
-        var(--bg-input) 0%,
-        var(--border) 50%,
-        var(--bg-input) 100%
-    );
+    background: linear-gradient(90deg,
+            var(--bg-input) 0%,
+            var(--border) 50%,
+            var(--bg-input) 100%);
     background-size: 200% 100%;
     animation: shimmer 1.5s infinite;
     margin-bottom: 12px;
@@ -1485,6 +1490,11 @@ textarea.result-textarea {
 }
 
 @keyframes shimmer {
-    0% { background-position: -200% 0; }
-    100% { background-position: 200% 0; }
+    0% {
+        background-position: -200% 0;
+    }
+
+    100% {
+        background-position: 200% 0;
+    }
 }
