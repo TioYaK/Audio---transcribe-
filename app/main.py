@@ -88,14 +88,14 @@ async def startup_event():
             db.commit()
             logger.info("Admin user verified/created.")
             
-        # 3. TASK RECOVERY (Reliability Fix)
-        # Instead of deleting, we re-queue pending tasks!
+        # 3. TASK RECOVERY (Reliability Fix with Better Error Handling)
+        # Re-queue pending tasks if file exists, otherwise mark as failed
         pending_tasks = db.query(models.TranscriptionTask).filter(
             models.TranscriptionTask.status.in_(["queued", "processing"])
         ).all()
         
         recovered_count = 0
-        deleted_count = 0
+        failed_count = 0
         
         for task in pending_tasks:
             # Check if file still exists
@@ -116,17 +116,20 @@ async def startup_event():
                         ops = {}
                 
                 # Re-queue
-                logger.info(f"Recovering task {task.task_id} with options: {ops}")
+                logger.info(f"✓ Recovering task {task.task_id} ({task.filename})")
                 await task_queue.put((task.task_id, task.file_path, ops))
                 recovered_count += 1
             else:
-                # File missing, cannot recover
-                logger.warning(f"Task {task.task_id} file missing. Deleting task.")
-                db.delete(task)
-                deleted_count += 1
+                # File missing, mark as failed instead of deleting
+                logger.warning(f"✗ Task {task.task_id} file missing: {task.file_path}")
+                task.status = "failed"
+                task.error_message = f"File not found: {os.path.basename(task.file_path)} (deleted or moved)"
+                task.completed_at = None
+                failed_count += 1
                 
         db.commit()
-        logger.info(f"Startup Plan: Recovered {recovered_count} tasks, Cleaned {deleted_count} broken tasks.")
+        logger.info(f"Startup: Recovered {recovered_count} tasks, Marked {failed_count} as failed (missing files)")
+
 
     finally:
         db.close()

@@ -35,3 +35,4 @@ redis
 alembic
 rq
 prometheus-fastapi-instrumentator
+psutil

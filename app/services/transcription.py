@@ -3,7 +3,8 @@ import logging
 import os
 from faster_whisper import WhisperModel, BatchedInferencePipeline
 from app.services.audio import AudioProcessor
-from app.services.diarization import DiarizationService
+# Diarization DISABLED - poor quality
+# from app.services.diarization import DiarizationService
 from app.services.analysis import BusinessAnalyzer
 
 logger = logging.getLogger(__name__)
@@ -17,7 +18,8 @@ class TranscriptionService:
         
         # Sub-services
         self.audio_processor = AudioProcessor()
-        self.diarizer = DiarizationService(device=self.settings.DEVICE)
+        # Diarization DISABLED - poor quality
+        # self.diarizer = DiarizationService(device=self.settings.DEVICE)
         self.analyzer = BusinessAnalyzer()
 
     def _load_model(self):
@@ -44,42 +46,76 @@ class TranscriptionService:
 
     def process_task(self, file_path: str, options: dict = {}, progress_callback=None, rules: list = None):
         """
-        Orchestrates the full pipeline:
-        1. Audio Optimize
-        2. Transcribe
-        3. Diarize
-        4. Analyze
+        Orchestrates the full pipeline with distributed caching:
+        1. Check transcription cache
+        2. Audio Optimize (if needed)
+        3. Transcribe (if not cached)
+        4. Check analysis cache
+        5. Analyze (if not cached)
+        
+        Diarization is DISABLED permanently (poor quality).
         """
-        # 1. Optimize
-        optimized_path = self.audio_processor.enhance_audio(file_path)
+        from app.services.cache_service import cache_service
         
-        # 2. Transcribe
-        segments, info = self._transcribe_audio(optimized_path, progress_callback)
-        
-        # 3. Diarize (Re-enabled with improved clustering)
-        use_diarization = options.get('diarization', True)
-        speaker_labels = []
-        if use_diarization:
-             speaker_labels = self.diarizer.diarize(optimized_path, segments)
-        
-        # 4. Format (timestamps disabled)
-        full_text = self._format_output(segments, speaker_labels, False)  # No timestamps
-        
-        # 5. Analyze
-        analysis = self.analyzer.analyze(full_text, rules=rules)
-        
-        # Cleanup (AFTER diarization and analysis)
-        if optimized_path != file_path and os.path.exists(optimized_path):
-            try:
-                os.remove(optimized_path)
-                logger.info(f"Cleaned up temporary file: {optimized_path}")
-            except Exception as e:
-                logger.warning(f"Failed to cleanup {optimized_path}: {e}")
+        # 1. CHECK TRANSCRIPTION CACHE
+        cached_transcription = cache_service.get_transcription(file_path, options)
+        if cached_transcription:
+            logger.info(f"✓ Using cached transcription for {os.path.basename(file_path)}")
+            full_text = cached_transcription['text']
+            info_dict = cached_transcription['info']
+        else:
+            # 2. Optimize audio
+            optimized_path = self.audio_processor.enhance_audio(file_path)
             
+            # 3. Transcribe
+            segments, info = self._transcribe_audio(optimized_path, progress_callback)
+            
+            # 4. Format (NO diarization, NO timestamps)
+            full_text = self._format_output(segments, [], False)
+            
+            # Store info
+            info_dict = {
+                'language': info.language,
+                'duration': info.duration
+            }
+            
+            # Cache transcription result
+            cache_service.set_transcription(
+                file_path,
+                {'text': full_text, 'info': info_dict},
+                options,
+                ttl=86400  # 24 hours
+            )
+            
+            # Cleanup optimized file
+            if optimized_path != file_path and os.path.exists(optimized_path):
+                try:
+                    os.remove(optimized_path)
+                    logger.debug(f"Cleaned up temporary file: {optimized_path}")
+                except Exception as e:
+                    logger.warning(f"Failed to cleanup {optimized_path}: {e}")
+        
+        # 5. CHECK ANALYSIS CACHE
+        cached_analysis = cache_service.get_analysis(full_text, rules)
+        if cached_analysis:
+            logger.info(f"✓ Using cached analysis")
+            analysis = cached_analysis
+        else:
+            # 6. Analyze
+            analysis = self.analyzer.analyze(full_text, rules=rules)
+            
+            # Cache analysis result
+            cache_service.set_analysis(
+                full_text,
+                analysis,
+                rules,
+                ttl=604800  # 7 days
+            )
+        
         return {
             "text": full_text,
-            "language": info.language,
-            "duration": info.duration,
+            "language": info_dict.get('language', 'unknown'),
+            "duration": info_dict.get('duration', 0.0),
             "summary": analysis.get("summary"),
             "topics": analysis.get("topics")
         }

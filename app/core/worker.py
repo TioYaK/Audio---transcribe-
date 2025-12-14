@@ -15,6 +15,15 @@ def process_transcription(task_id: str, file_path: str, options: dict = {}):
     
     try:
         logger.info(f"Starting processing for task {task_id}")
+        
+        # VALIDATION: Check if file exists before processing
+        import os
+        if not os.path.exists(file_path):
+            error_msg = f"File not found: {file_path} (deleted or moved)"
+            logger.error(f"Task {task_id} failed: {error_msg}")
+            task_store.update_status(task_id, "failed", error_message=error_msg)
+            return
+        
         task_store.update_status(task_id, "processing")
         
         start_ts = perf_counter()
@@ -75,6 +84,13 @@ def process_transcription(task_id: str, file_path: str, options: dict = {}):
                 logger.info(f"Saved corrected text for task {task_id}")
         
         logger.info(f"Task {task_id} completed successfully.")
+        
+        # CLEANUP: Free RAM and GPU memory after task completion
+        try:
+            from app.utils.memory_cleanup import cleanup_after_task
+            cleanup_after_task(task_id, clear_gpu=True)
+        except Exception as e:
+            logger.warning(f"Post-task cleanup failed: {e}")
 
     except Exception as e:
         logger.error(f"Task {task_id} failed: {e}")
