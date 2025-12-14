@@ -65,7 +65,7 @@ class DiarizationService:
         from sklearn.cluster import AgglomerativeClustering
         from sklearn.preprocessing import normalize
         
-        logger.info(f"Starting Diarization on {self.device.upper()}...")
+        logger.info(f"Starting IMPROVED Diarization on {self.device.upper()}...")
         
         try:
             # Init Model
@@ -98,6 +98,7 @@ class DiarizationService:
                 
             embeddings = []
             valid_indices = []
+            segment_energies = []
             
             # Compute Embeddings
             for i, seg in enumerate(segments):
@@ -105,8 +106,8 @@ class DiarizationService:
                 start = int(seg.start * fs)
                 end = int(seg.end * fs)
                 
-                # Skip very short segments (<0.2s) helps reducing noise clustering
-                if end - start < 3200: 
+                # Skip very short segments (<0.3s) - increased from 0.2s
+                if end - start < 4800:  # 0.3s at 16kHz
                     continue
                 
                 # Verify bounds
@@ -115,6 +116,13 @@ class DiarizationService:
                 
                 # Extract crop
                 crop = wav[:, start:end]
+                
+                # Calculate energy (RMS) to filter out silence/noise
+                energy = torch.sqrt(torch.mean(crop ** 2)).item()
+                
+                # Skip segments with very low energy (likely silence)
+                if energy < 0.01:  # Threshold for silence detection
+                    continue
                 
                 # Encode
                 # encode_batch expects (batch, time)
@@ -126,6 +134,7 @@ class DiarizationService:
                     
                 embeddings.append(emb)
                 valid_indices.append(i)
+                segment_energies.append(energy)
                 
             if len(embeddings) < 2:
                 logger.info("Not enough segments for clustering.")
@@ -137,24 +146,17 @@ class DiarizationService:
             # 1. Normalize (Cosine Similarity Prep)
             X_norm = normalize(X) 
             
-            # 2. Agglomerative Clustering with Distance Threshold (Auto Speaker Count)
-            # Threshold Tuning:
-            # Vectors are normalized to unit length.
-            # Euclidean Distance = sqrt(2 * (1 - Cosine_Similarity))
-            # 
-            # Threshold 1.5 -> Cosine Sim -0.125 (Merges almost everything) -> BAD
-            # Threshold 0.8 -> Cosine Sim 0.68  (Reasonable for distinct speakers)
-            # Threshold 0.6 -> Cosine Sim 0.82  (Very strict, might split same person)
+            # 2. Agglomerative Clustering with IMPROVED Distance Threshold
+            # CRITICAL CHANGE: Lowered from 0.8 to 0.5 for better speaker separation
+            # Threshold 0.5 -> Cosine Sim ~0.875 (Good separation between speakers)
+            # This prevents merging different speakers
             
             clusterer = AgglomerativeClustering(
                 n_clusters=None,
                 metric='euclidean',
                 linkage='ward', 
-                distance_threshold=0.8 # TIGHTENED from 1.5 to 0.8 to force separation
+                distance_threshold=0.5  # IMPROVED: Lowered from 0.8 to 0.5
             )
-            
-            # Alternate approach: If user wants specific count, we could swap params.
-            # But currently we want "Best possible auto".
             
             labels = clusterer.fit_predict(X_norm)
             
@@ -163,35 +165,43 @@ class DiarizationService:
             for idx, lbl in zip(valid_indices, labels):
                 final_labels[idx] = int(lbl)
                 
-            # 3. Smoothing (Post-Processing)
-            # Algorithm: Rolling majority vote or simple neighbor fix
-            # Simple: If A B A -> A A A
-            for j in range(1, len(final_labels) - 1):
-                prev = final_labels[j-1]
-                curr = final_labels[j]
-                next_l = final_labels[j+1]
-                
-                if prev != -1 and next_l != -1 and prev == next_l and curr != prev:
-                    final_labels[j] = prev
-
-            # Fill -1 (skipped short segments) with nearest neighbor
-            # Forward pass
-            last_known = 0
+            # 3. IMPROVED Smoothing (Post-Processing)
+            # Use sliding window majority vote (window size 5)
+            window_size = 5
+            smoothed_labels = final_labels.copy()
+            
             for j in range(len(final_labels)):
-                if final_labels[j] != -1:
-                    last_known = final_labels[j]
+                # Get window around current position
+                start_idx = max(0, j - window_size // 2)
+                end_idx = min(len(final_labels), j + window_size // 2 + 1)
+                window = final_labels[start_idx:end_idx]
+                
+                # Filter out -1 (invalid)
+                valid_window = [l for l in window if l != -1]
+                
+                if valid_window:
+                    # Majority vote
+                    from collections import Counter
+                    most_common = Counter(valid_window).most_common(1)[0][0]
+                    smoothed_labels[j] = most_common
+
+            # 4. Fill remaining -1 with forward fill
+            last_known = 0
+            for j in range(len(smoothed_labels)):
+                if smoothed_labels[j] != -1:
+                    last_known = smoothed_labels[j]
                 else:
-                    final_labels[j] = last_known
+                    smoothed_labels[j] = last_known
             
             # Cache Result
             os.makedirs(os.path.dirname(cache_path), exist_ok=True)
             with open(cache_path, 'wb') as f:
-                pickle.dump({'labels': final_labels}, f)
+                pickle.dump({'labels': smoothed_labels}, f)
                 
-            num_speakers = len(set(final_labels))
-            logger.info(f"Diarization Complete. Detected {num_speakers} speakers.")
+            num_speakers = len(set(smoothed_labels))
+            logger.info(f"Diarization Complete. Detected {num_speakers} speakers (IMPROVED).")
             
-            return final_labels
+            return smoothed_labels
             
         except Exception as e:
             logger.error(f"Diarization error: {e}", exc_info=True)

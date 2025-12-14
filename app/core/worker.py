@@ -7,6 +7,7 @@ from app.core.config import logger
 from app.core.queue import task_queue
 from app.core.services import whisper_service
 from app.core.services import spell_checker
+from app.services.noise_reduction import reduce_noise
 
 def process_transcription(task_id: str, file_path: str, options: dict = {}):
     background_db = SessionLocal()
@@ -17,6 +18,11 @@ def process_transcription(task_id: str, file_path: str, options: dict = {}):
         task_store.update_status(task_id, "processing")
         
         start_ts = perf_counter()
+        
+        # Apply noise reduction before transcription
+        logger.info(f"Applying noise reduction to {file_path}")
+        cleaned_audio_path = reduce_noise(file_path)
+        logger.info(f"Using audio file: {cleaned_audio_path}")
         
         def update_prog(pct):
             task_store.update_progress(task_id, pct)
@@ -33,7 +39,7 @@ def process_transcription(task_id: str, file_path: str, options: dict = {}):
         except Exception as e:
             logger.warning(f"Could not fetch analysis rules: {e}")
 
-        result = whisper_service.process_task(file_path, options=options, progress_callback=update_prog, rules=rules)
+        result = whisper_service.process_task(cleaned_audio_path, options=options, progress_callback=update_prog, rules=rules)
         processing_time = perf_counter() - start_ts
         
         # Get original text

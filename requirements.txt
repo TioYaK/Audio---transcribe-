@@ -22,7 +22,7 @@ scikit-learn
 numpy
 requests
 # Audio Enhancement
-# (noisereduce & pydub removed for performance optimization)
+noisereduce
 # AI Analysis
 sumy
 # Spell Correction
