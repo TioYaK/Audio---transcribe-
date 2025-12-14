@@ -6,11 +6,14 @@ __pycache__/
 # IDEs
 .vscode/
 .idea/
+.kiro/
 
 # Testing
 .hypothesis/
 .pytest_cache/
 test_output.txt
+test_*.py
+test_*.html
 
 # Environment (NEVER commit .env with secrets!)
 .env
@@ -23,3 +26,19 @@ uploads/
 data/
 !data/.gitkeep
 whisper_cache/
+backups/
+
+# Temporary files
+*.backup
+*.fixed
+*_fixed.*
+*.tmp
+*.bak
+
+# Documentation (keep only README.md)
+*.md
+!README.md
+
+# Scripts
+*.ps1
+apply_improvements.py
