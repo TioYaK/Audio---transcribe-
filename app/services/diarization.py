@@ -146,19 +146,56 @@ class DiarizationService:
             # 1. Normalize (Cosine Similarity Prep)
             X_norm = normalize(X) 
             
-            # 2. Agglomerative Clustering with IMPROVED Distance Threshold
-            # CRITICAL CHANGE: Lowered from 0.8 to 0.5 for better speaker separation
-            # Threshold 0.5 -> Cosine Sim ~0.875 (Good separation between speakers)
-            # This prevents merging different speakers
+            # 2. IMPROVED: Try different number of clusters and pick best
+            # USER CONFIRMED: Always at least 2 people in audio
+            # We test n_clusters from 2 to min(4, len(embeddings))
+            from sklearn.metrics import silhouette_score
             
-            clusterer = AgglomerativeClustering(
-                n_clusters=None,
-                metric='euclidean',
-                linkage='ward', 
-                distance_threshold=0.5  # IMPROVED: Lowered from 0.8 to 0.5
-            )
+            max_clusters = min(4, len(embeddings))
             
-            labels = clusterer.fit_predict(X_norm)
+            # FORCE minimum 2 speakers (user confirmed always 2+ people)
+            if max_clusters < 2:
+                logger.warning(f"Not enough embeddings ({len(embeddings)}) for 2 clusters. Using single speaker.")
+                labels = [0] * len(embeddings)
+            else:
+                best_n_clusters = 2  # Default to 2 speakers
+                best_score = -1
+                best_labels = None
+                
+                logger.info(f"Testing clustering with {len(embeddings)} segments, range: 2 to {max_clusters} speakers")
+                
+                for n in range(2, max_clusters + 1):
+                    try:
+                        clusterer = AgglomerativeClustering(
+                            n_clusters=n,
+                            metric='euclidean',
+                            linkage='ward'
+                        )
+                        test_labels = clusterer.fit_predict(X_norm)
+                        
+                        # Calculate silhouette score (quality metric)
+                        score = silhouette_score(X_norm, test_labels)
+                        logger.info(f"  n_clusters={n}: silhouette_score={score:.3f}, unique_labels={len(set(test_labels))}")
+                        
+                        if score > best_score:
+                            best_score = score
+                            best_n_clusters = n
+                            best_labels = test_labels
+                    except Exception as e:
+                        logger.warning(f"  n_clusters={n} failed: {e}")
+                        continue
+                
+                # If no valid clustering found, force 2 speakers
+                if best_labels is None:
+                    logger.warning("All clustering attempts failed. Forcing 2 speakers.")
+                    clusterer = AgglomerativeClustering(n_clusters=2, metric='euclidean', linkage='ward')
+                    best_labels = clusterer.fit_predict(X_norm)
+                    best_n_clusters = 2
+                    best_score = 0.0
+                
+                logger.info(f"✓ Selected {best_n_clusters} speakers with silhouette score={best_score:.3f}")
+                labels = best_labels
+            
             
             # Map back to original segments
             final_labels = [-1] * len(segments)

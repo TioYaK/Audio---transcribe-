@@ -800,9 +800,7 @@ document.addEventListener('DOMContentLoaded', () => {
         const formData = new FormData();
         formData.append('file', file);
         // Options
-        const ts = document.getElementById('opt-timestamp');
         const dr = document.getElementById('opt-diarization');
-        if (ts) formData.append('timestamp', ts.checked);
         if (dr) formData.append('diarization', dr.checked);
         const bar = item.querySelector('.progress-bar-fill');
         const statusEl = item.querySelector(`#status-${itemId}`);
@@ -1742,18 +1740,19 @@ document.addEventListener('DOMContentLoaded', () => {
                 const row = document.createElement('div');
                 row.className = 'user-row';
                 row.style.cssText = 'padding:12px; border-bottom:1px solid var(--border); display:flex; justify-content:space-between; align-items:center';
+                const limitDisplay = (u.transcription_limit === 0 || u.transcription_limit === null) ? '∞' : (u.transcription_limit || 100);
                 row.innerHTML = `
-                    <div>
-                        <div style="font-weight:600">${escapeHtml(u.username)}${isAdminUser ? ' <span style="color:var(--danger); font-size:0.7rem;">(ADMIN PRINCIPAL)</span>' : ''}</div>
-                        <div style="font-size:0.8rem; color:var(--text-muted)">${escapeHtml(u.full_name)} • ${u.usage}/${u.transcription_limit || 100}</div>
-                    </div>
-                    <div style="display:flex; gap:8px; align-items:center;">
-                        <span style="font-size:0.8rem; padding:2px 8px; border-radius:12px; background:${active ? 'var(--success)' : 'var(--warning)'}; color:white">${active ? 'Ativo' : 'Pendente'}</span>
-                        ${!isAdminUser ? `<button class="action-btn" onclick="toggleAdmin('${u.id}', ${isAdmin})"><i class="ph ${isAdmin ? 'ph-shield-slash' : 'ph-shield-check'}"></i></button>` : ''}
-                        <button class="action-btn" onclick="changeLimit('${u.id}', ${u.transcription_limit || 100})"><i class="ph ph-faders"></i></button>
-                        ${!isAdminUser ? `<button class="action-btn delete" onclick="deleteUser('${u.id}')"><i class="ph ph-trash"></i></button>` : '<span style="color:var(--text-muted); font-size:0.7rem;">Protegido</span>'}
-                    </div>
-                `;
+                <div>
+                    <div style="font-weight:600">${escapeHtml(u.username)}${isAdminUser ? ' <span style="color:var(--danger); font-size:0.7rem;">(ADMIN PRINCIPAL)</span>' : ''}</div>
+                    <div style="font-size:0.8rem; color:var(--text-muted)">${escapeHtml(u.full_name)} • ${u.usage}/${limitDisplay}</div>
+                </div>
+                <div style="display:flex; gap:8px; align-items:center;">
+                    <span style="font-size:0.8rem; padding:2px 8px; border-radius:12px; background:${active ? 'var(--success)' : 'var(--warning)'}; color:white">${active ? 'Ativo' : 'Pendente'}</span>
+                    ${!isAdminUser ? `<button class="action-btn" onclick="toggleAdmin('${u.id}', ${isAdmin})"><i class="fa-solid ${isAdmin ? 'fa-shield' : 'fa-shield-halved'}"></i></button>` : ''}
+                    <button class="action-btn" onclick="changeLimit('${u.id}', ${u.transcription_limit || 100})"><i class="fa-solid fa-sliders"></i></button>
+                    ${!isAdminUser ? `<button class="action-btn delete" onclick="deleteUser('${u.id}')"><i class="fa-solid fa-trash"></i></button>` : '<span style="color:var(--text-muted); font-size:0.7rem;">Protegido</span>'}
+                </div>
+            `;
                 aList.appendChild(row);
 
                 // Pending List
@@ -1765,7 +1764,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     <strong>${escapeHtml(u.username)}</strong>
                         <div style="display:flex; gap:8px;">
                             <button class="action-btn" style="background:var(--success); color:white; border-radius:4px; padding:4px 8px" onclick="approveUser('${u.id}')">Aprovar</button>
-                            <button class="action-btn delete" onclick="deleteUser('${u.id}')"><i class="ph ph-trash"></i></button>
+                            <button class="action-btn delete" onclick="deleteUser('${u.id}')"><i class="fa-solid fa-trash"></i></button>
                         </div>
                 `;
                     pList.appendChild(pRow);
@@ -1823,9 +1822,17 @@ document.addEventListener('DOMContentLoaded', () => {
         if (isNaN(val) || val < 0) return alert('Numero inválido');
 
         try {
-            await authFetch(`/api/admin/user/${id}/limit`, { method: 'POST', body: JSON.stringify({ limit: val }) });
+            await authFetch(`/api/admin/user/${id}/limit`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ limit: val })
+            });
+            showToast('Limite atualizado!', 'fa-solid fa-check');
             loadAdminUsers();
-        } catch (e) { alert('Erro'); }
+        } catch (e) {
+            console.error('Error changing limit:', e);
+            alert('Erro ao alterar limite');
+        }
     };
 
     // Load User Info
