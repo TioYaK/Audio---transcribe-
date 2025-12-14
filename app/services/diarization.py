@@ -7,6 +7,9 @@ from typing import List, Optional
 
 logger = logging.getLogger(__name__)
 
+# Force SpeechBrain to use soundfile backend (avoids torchaudio warnings)
+os.environ['SPEECHBRAIN_AUDIO_BACKEND'] = 'soundfile'
+
 class DiarizationService:
     def __init__(self, device: str = "cpu"):
         self.device = device
@@ -79,8 +82,18 @@ class DiarizationService:
                     run_opts=run_opts
                 )
             
-            # Load Audio (Torchaudio is faster and handles resampling)
-            wav, fs = torchaudio.load(audio_path)
+            # Load Audio using soundfile (avoids torchcodec dependency)
+            import soundfile as sf
+            audio_data, fs = sf.read(audio_path)
+            
+            # Convert to torch tensor
+            wav = torch.from_numpy(audio_data).float()
+            
+            # Ensure 2D shape (channels, samples)
+            if wav.ndim == 1:
+                wav = wav.unsqueeze(0)  # Add channel dimension
+            else:
+                wav = wav.T  # Transpose to (channels, samples)
             
             # Convert to Mono
             if wav.shape[0] > 1:
@@ -143,12 +156,11 @@ class DiarizationService:
             # Clustering Logic
             X = np.array(embeddings)
             
-            # 1. Normalize (Cosine Similarity Prep)
+            # 1. Normalize (CRITICAL for cosine similarity)
             X_norm = normalize(X) 
             
-            # 2. IMPROVED: Try different number of clusters and pick best
-            # USER CONFIRMED: Always at least 2 people in audio
-            # We test n_clusters from 2 to min(4, len(embeddings))
+            # 2. IMPROVED: Use cosine distance for better speaker separation
+            # Cosine distance works better than euclidean for speaker embeddings
             from sklearn.metrics import silhouette_score
             
             max_clusters = min(4, len(embeddings))
@@ -166,15 +178,17 @@ class DiarizationService:
                 
                 for n in range(2, max_clusters + 1):
                     try:
+                        # Using 'cosine' metric with 'average' linkage for speaker embeddings
+                        # This is more effective than euclidean+ward for voice
                         clusterer = AgglomerativeClustering(
                             n_clusters=n,
-                            metric='euclidean',
-                            linkage='ward'
+                            metric='cosine',  # Changed from euclidean
+                            linkage='average'  # Changed from ward (ward doesn't work with cosine)
                         )
                         test_labels = clusterer.fit_predict(X_norm)
                         
                         # Calculate silhouette score (quality metric)
-                        score = silhouette_score(X_norm, test_labels)
+                        score = silhouette_score(X_norm, test_labels, metric='cosine')
                         logger.info(f"  n_clusters={n}: silhouette_score={score:.3f}, unique_labels={len(set(test_labels))}")
                         
                         if score > best_score:
@@ -188,7 +202,7 @@ class DiarizationService:
                 # If no valid clustering found, force 2 speakers
                 if best_labels is None:
                     logger.warning("All clustering attempts failed. Forcing 2 speakers.")
-                    clusterer = AgglomerativeClustering(n_clusters=2, metric='euclidean', linkage='ward')
+                    clusterer = AgglomerativeClustering(n_clusters=2, metric='cosine', linkage='average')
                     best_labels = clusterer.fit_predict(X_norm)
                     best_n_clusters = 2
                     best_score = 0.0

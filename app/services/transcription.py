@@ -56,21 +56,25 @@ class TranscriptionService:
         # 2. Transcribe
         segments, info = self._transcribe_audio(optimized_path, progress_callback)
         
-        # 3. Diarize (Optional but enabled by default in Logic)
+        # 3. Diarize (Re-enabled with improved clustering)
         use_diarization = options.get('diarization', True)
         speaker_labels = []
         if use_diarization:
              speaker_labels = self.diarizer.diarize(optimized_path, segments)
         
-        # 4. Format
-        full_text = self._format_output(segments, speaker_labels, options.get('timestamp', True))
+        # 4. Format (timestamps disabled)
+        full_text = self._format_output(segments, speaker_labels, False)  # No timestamps
         
         # 5. Analyze
         analysis = self.analyzer.analyze(full_text, rules=rules)
         
-        # Cleanup
+        # Cleanup (AFTER diarization and analysis)
         if optimized_path != file_path and os.path.exists(optimized_path):
-            os.remove(optimized_path)
+            try:
+                os.remove(optimized_path)
+                logger.info(f"Cleaned up temporary file: {optimized_path}")
+            except Exception as e:
+                logger.warning(f"Failed to cleanup {optimized_path}: {e}")
             
         return {
             "text": full_text,
@@ -82,13 +86,26 @@ class TranscriptionService:
 
     def _transcribe_audio(self, path, cb):
         if self.batched_model:
-            segments, info = self.batched_model.transcribe(path, batch_size=16, word_timestamps=True)
+            # Batched model requires VAD or clip_timestamps
+            # Using VAD with less aggressive parameters
+            segments, info = self.batched_model.transcribe(
+                path, 
+                batch_size=16, 
+                word_timestamps=True,
+                vad_filter=True,
+                vad_parameters={
+                    "threshold": 0.3,  # Lower = less aggressive (default 0.5)
+                    "min_speech_duration_ms": 100,  # Shorter minimum (default 250)
+                    "min_silence_duration_ms": 1000,  # Longer silence needed to cut (default 2000)
+                    "speech_pad_ms": 200  # More padding around speech (default 400)
+                }
+            )
         else:
             segments, info = self.model.transcribe(
                 path, 
                 beam_size=5, 
                 language="pt", 
-                vad_filter=True, 
+                vad_filter=False,  # Disabled: standard model doesn't need it
                 word_timestamps=True
             )
             

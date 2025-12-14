@@ -20,18 +20,28 @@ def reduce_noise(audio_path: str, output_path: str = None) -> str:
     Returns:
         Path to cleaned audio file
     """
+    logger.info(f"[NOISE_REDUCE] Input path: {audio_path}")
+    logger.info(f"[NOISE_REDUCE] File exists: {os.path.exists(audio_path)}")
+    
+    # If file doesn't exist, return original path (will fail later with better error)
+    if not os.path.exists(audio_path):
+        logger.error(f"[NOISE_REDUCE] Input file does not exist: {audio_path}")
+        return audio_path
+    
     try:
         import noisereduce as nr
         import soundfile as sf
         
-        logger.info(f"Applying noise reduction to {audio_path}")
+        logger.info(f"[NOISE_REDUCE] Starting noise reduction...")
         
         # Load audio
         data, rate = sf.read(audio_path)
+        logger.info(f"[NOISE_REDUCE] Loaded audio: {len(data)} samples at {rate}Hz")
         
         # Convert stereo to mono if needed
         if len(data.shape) > 1:
             data = np.mean(data, axis=1)
+            logger.info(f"[NOISE_REDUCE] Converted stereo to mono")
         
         # Apply noise reduction
         # stationary=True for consistent background noise (AC, fan, etc.)
@@ -53,12 +63,13 @@ def reduce_noise(audio_path: str, output_path: str = None) -> str:
         # Save cleaned audio
         sf.write(output_path, reduced_noise, rate)
         
-        logger.info(f"Noise reduction complete. Saved to {output_path}")
+        logger.info(f"[NOISE_REDUCE] ✓ Complete. Saved to: {output_path}")
+        logger.info(f"[NOISE_REDUCE] Output file exists: {os.path.exists(output_path)}")
         return output_path
         
-    except ImportError:
-        logger.warning("noisereduce or soundfile not installed. Skipping noise reduction.")
+    except ImportError as e:
+        logger.warning(f"[NOISE_REDUCE] noisereduce or soundfile not installed: {e}. Skipping.")
         return audio_path
     except Exception as e:
-        logger.error(f"Noise reduction failed: {e}. Using original audio.")
+        logger.error(f"[NOISE_REDUCE] Failed: {e}. Using original audio.")
         return audio_path

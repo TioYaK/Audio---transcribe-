@@ -94,7 +94,7 @@ services:
     build:
       context: .
       dockerfile: Dockerfile
-    container_name: careca-worker
+    container_name: careca-worker-1
     restart: unless-stopped
     command: rq worker transcription_tasks --url redis://redis:6379/0
     env_file:
@@ -114,6 +114,43 @@ services:
       - redis
     healthcheck:
       test: [ "CMD", "ls", "/app" ] # Simple check that container file system is accessible
+      interval: 30s
+      timeout: 10s
+      retries: 3
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: 1
+              capabilities: [ gpu ]
+    networks:
+      - careca-network
+
+  worker-2:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: careca-worker-2
+    restart: unless-stopped
+    command: rq worker transcription_tasks --url redis://redis:6379/0
+    env_file:
+      - .env
+    volumes:
+      - .:/app
+      - whisper-models:/home/appuser/.cache/huggingface
+      - uploads:/app/uploads
+      - database:/app/data
+    environment:
+      - DATABASE_URL=postgresql://${DB_USER}:${DB_PASSWORD}@db:5432/${DB_NAME:-carecadb}
+      - REDIS_URL=redis://redis:6379/0
+      # Worker 2 also uses GPU
+      - DEVICE=${DEVICE:-cuda}
+    depends_on:
+      - db
+      - redis
+    healthcheck:
+      test: [ "CMD", "ls", "/app" ]
       interval: 30s
       timeout: 10s
       retries: 3
