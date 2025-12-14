@@ -4,7 +4,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Login - Careca.ai</title>
+    <title>Login - Mirror.ia</title>
     <link rel="icon"
         href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>🎙️</text></svg>">
     <script src="https://unpkg.com/@phosphor-icons/web"></script>
@@ -102,7 +102,9 @@
 <body>
     <div class="login-card">
         <i class="ph-fill ph-wave-sine login-logo"></i>
-        <h2 id="card-title" style="margin:0 0 24px 0;">Careca.AI</h2>
+        <h2 id="card-title" style="margin:0 0 24px 0;">Mirror.ia</h2>
+        <p style="color:var(--text-muted); font-size: 0.9rem; margin-top:-20px; margin-bottom: 24px;">Sua voz, refletida
+            em inteligência.</p>
 
         <!-- Login Form -->
         <form id="login-form">
@@ -200,12 +202,12 @@
             if (isLogin) {
                 loginForm.classList.remove('hidden');
                 registerForm.classList.add('hidden');
-                cardTitle.textContent = 'Careca.AI';
+                cardTitle.textContent = 'Mirror.ia';
                 toggleBtn.textContent = 'Criar uma conta';
             } else {
                 loginForm.classList.add('hidden');
                 registerForm.classList.remove('hidden');
-                cardTitle.textContent = 'Careca.AI';
+                cardTitle.textContent = 'Mirror.ia';
                 toggleBtn.textContent = 'Já tenho uma conta';
             }
         });

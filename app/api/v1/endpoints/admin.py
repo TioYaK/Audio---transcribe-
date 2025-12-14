@@ -5,15 +5,14 @@ from app import models, auth, crud
 from app.database import get_db
 from app.core.config import settings, logger
 from app.core.services import whisper_service
+from app.schemas import RuleCreate, UpdateUserLimitRequest
 import os
 import uuid
 
 router = APIRouter()
 
 @router.get("/logs")
-async def get_logs(limit: int = 100, current_user: models.User = Depends(auth.get_current_user)):
-    if not current_user.is_admin:
-        raise HTTPException(status_code=403, detail="Acesso restrito")
+async def get_logs(limit: int = 100, current_user: models.User = Depends(auth.require_admin)):
     log_file = "/app/data/app.log"
     if not os.path.exists(log_file): return {"logs": ["Log file not found."]}
     try:
@@ -23,8 +22,7 @@ async def get_logs(limit: int = 100, current_user: models.User = Depends(auth.ge
     except Exception as e: return {"logs": [f"Error: {e}"]}
 
 @router.get("/admin/users")
-async def get_all_users(db: Session = Depends(get_db), current_user: models.User = Depends(auth.get_current_user)):
-    if not current_user.is_admin: raise HTTPException(403)
+async def get_all_users(db: Session = Depends(get_db), current_user: models.User = Depends(auth.require_admin)):
     task_store = crud.TaskStore(db)
     users_data = []
     for u in task_store.get_users():
@@ -37,20 +35,17 @@ async def get_all_users(db: Session = Depends(get_db), current_user: models.User
     return users_data
 
 @router.post("/admin/approve/{user_id}")
-async def approve_user(user_id: str, db: Session = Depends(get_db), current_user: models.User = Depends(auth.get_current_user)):
-    if not current_user.is_admin: raise HTTPException(403)
+async def approve_user(user_id: str, db: Session = Depends(get_db), current_user: models.User = Depends(auth.require_admin)):
     crud.TaskStore(db).approve_user(user_id)
     return {"message": "Aprovado"}
 
 @router.post("/admin/user/{user_id}/limit")
-async def update_limit(user_id: str, payload: dict, db: Session = Depends(get_db), current_user: models.User = Depends(auth.get_current_user)):
-    if not current_user.is_admin: raise HTTPException(403)
-    crud.TaskStore(db).update_user_limit(user_id, int(payload.get("limit", 0)))
+async def update_limit(user_id: str, payload: UpdateUserLimitRequest, db: Session = Depends(get_db), current_user: models.User = Depends(auth.require_admin)):
+    crud.TaskStore(db).update_user_limit(user_id, payload.limit)
     return {"message": "Limite atualizado"}
 
 @router.delete("/admin/user/{user_id}")
-async def delete_user(user_id: str, db: Session = Depends(get_db), current_user: models.User = Depends(auth.get_current_user)):
-    if not current_user.is_admin: raise HTTPException(403)
+async def delete_user(user_id: str, db: Session = Depends(get_db), current_user: models.User = Depends(auth.require_admin)):
     crud.TaskStore(db).delete_user(user_id)
     return {"message": "User deleted"}
 
@@ -62,8 +57,7 @@ async def clear_history(db: Session = Depends(get_db), current_user: models.User
     return {"deleted": deleted}
 
 @router.post("/admin/regenerate-all")
-async def regenerate_all(db: Session = Depends(get_db), current_user: models.User = Depends(auth.get_current_user)):
-    if not current_user.is_admin: raise HTTPException(403)
+async def regenerate_all(db: Session = Depends(get_db), current_user: models.User = Depends(auth.require_admin)):
     tasks = db.query(models.TranscriptionTask).filter(models.TranscriptionTask.status == "completed").all()
     
     # Fetch active rules for regeneration context
@@ -88,36 +82,29 @@ async def regenerate_all(db: Session = Depends(get_db), current_user: models.Use
 # --- Dynamic Analysis Rules (Tier 3) ---
 
 @router.get("/admin/rules")
-async def get_rules(db: Session = Depends(get_db), current_user: models.User = Depends(auth.get_current_user)):
-    if not current_user.is_admin: raise HTTPException(403)
+async def get_rules(db: Session = Depends(get_db), current_user: models.User = Depends(auth.require_admin)):
     return db.query(models.AnalysisRule).all()
 
 @router.post("/admin/rules")
 async def create_rule(
-    payload: dict = Body(...), 
+    payload: RuleCreate,  # Now using Pydantic schema for validation
     db: Session = Depends(get_db), 
-    current_user: models.User = Depends(auth.get_current_user)
+    current_user: models.User = Depends(auth.require_admin)
 ):
-    if not current_user.is_admin: raise HTTPException(403)
-    
-    # Simple validation
-    if not payload.get('name') or not payload.get('category'):
-        raise HTTPException(400, "Missing name or category")
-        
     rule = models.AnalysisRule(
-        name=payload['name'],
-        category=payload['category'],
-        keywords=payload.get('keywords', ''),
-        description=payload.get('description', ''),
-        is_active=payload.get('is_active', True)
+        name=payload.name,
+        category=payload.category,
+        keywords=payload.keywords,
+        description=payload.description,
+        is_active=payload.is_active
     )
     db.add(rule)
     db.commit()
+    db.refresh(rule)
     return rule
 
 @router.delete("/admin/rules/{rule_id}")
-async def delete_rule(rule_id: str, db: Session = Depends(get_db), current_user: models.User = Depends(auth.get_current_user)):
-    if not current_user.is_admin: raise HTTPException(403)
+async def delete_rule(rule_id: str, db: Session = Depends(get_db), current_user: models.User = Depends(auth.require_admin)):
     rule = db.query(models.AnalysisRule).filter(models.AnalysisRule.id == rule_id).first()
     if rule:
         db.delete(rule)
@@ -126,8 +113,7 @@ async def delete_rule(rule_id: str, db: Session = Depends(get_db), current_user:
 
 # Legacy Config (Deprecated but kept for now)
 @router.post("/admin/config/keywords")
-async def update_keywords(payload: dict, db: Session = Depends(get_db), current_user: models.User = Depends(auth.get_current_user)):
-    if not current_user.is_admin: raise HTTPException(403)
+async def update_keywords(payload: dict, db: Session = Depends(get_db), current_user: models.User = Depends(auth.require_admin)):
     # Redirect legacy config to create default rules if needed?
     # For now just ignore or keep simple
     return {"status": "legacy_update_ignored"}
@@ -135,3 +121,4 @@ async def update_keywords(payload: dict, db: Session = Depends(get_db), current_
 @router.get("/config/keywords")
 async def get_keywords(db: Session = Depends(get_db)):
     return {"keywords": "", "keywords_red": "", "keywords_green": ""}
+

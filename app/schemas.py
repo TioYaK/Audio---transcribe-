@@ -1,5 +1,5 @@
 from pydantic import BaseModel, validator, Field
-from typing import Optional
+from typing import Optional, Literal
 import re
 
 class RenameTaskRequest(BaseModel):
@@ -58,3 +58,43 @@ class PaginationParams(BaseModel):
 class UploadOptions(BaseModel):
     timestamp: bool = True
     diarization: bool = True
+
+# Admin Schemas - Phase 1 Security
+class RuleCreate(BaseModel):
+    """Schema for creating analysis rules"""
+    name: str = Field(..., min_length=1, max_length=100, description="Rule name")
+    category: Literal['positive', 'negative', 'critical'] = Field(..., description="Rule category")
+    keywords: str = Field(..., max_length=2000, description="Comma-separated keywords")
+    description: Optional[str] = Field(None, max_length=500)
+    is_active: bool = Field(True)
+    
+    @validator('keywords')
+    def validate_keywords(cls, v):
+        if not v or not v.strip():
+            raise ValueError('Keywords cannot be empty')
+        # Ensure proper comma-separated format
+        keywords = [k.strip() for k in v.split(',') if k.strip()]
+        if not keywords:
+            raise ValueError('At least one keyword is required')
+        return ', '.join(keywords)
+
+class RuleUpdate(BaseModel):
+    """Schema for updating analysis rules"""
+    name: Optional[str] = Field(None, min_length=1, max_length=100)
+    category: Optional[Literal['positive', 'negative', 'critical']] = None
+    keywords: Optional[str] = Field(None, max_length=2000)
+    description: Optional[str] = Field(None, max_length=500)
+    is_active: Optional[bool] = None
+
+class TokenRefreshRequest(BaseModel):
+    """Schema for refresh token request"""
+    refresh_token: str = Field(..., min_length=10)
+
+class TokenResponse(BaseModel):
+    """Schema for token response"""
+    access_token: str
+    refresh_token: str
+    token_type: str = "bearer"
+    is_admin: bool
+    username: str
+

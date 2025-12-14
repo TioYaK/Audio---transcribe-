@@ -17,7 +17,7 @@ class TranscriptionService:
         
         # Sub-services
         self.audio_processor = AudioProcessor()
-        self.diarizer = DiarizationService()
+        self.diarizer = DiarizationService(device=self.settings.DEVICE)
         self.analyzer = BusinessAnalyzer()
 
     def _load_model(self):

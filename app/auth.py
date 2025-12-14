@@ -1,5 +1,5 @@
-from datetime import datetime, timedelta
-from typing import Optional
+from datetime import datetime, timedelta, timezone
+from typing import Optional, Literal
 from jose import JWTError, jwt
 from passlib.context import CryptContext
 from fastapi.security import OAuth2PasswordBearer
@@ -11,7 +11,8 @@ from app.core.config import settings
 # Config
 SECRET_KEY = settings.SECRET_KEY
 ALGORITHM = "HS256"
-ACCESS_TOKEN_EXPIRE_MINUTES = 300 # 5 hours for convenience
+ACCESS_TOKEN_EXPIRE_MINUTES = 30  # Shorter for security
+REFRESH_TOKEN_EXPIRE_DAYS = 7    # Longer refresh token
 
 pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="token")
@@ -23,15 +24,51 @@ def get_password_hash(password):
     return pwd_context.hash(password)
 
 def create_access_token(data: dict, expires_delta: Optional[timedelta] = None):
+    """Create a short-lived access token"""
     to_encode = data.copy()
     if expires_delta:
-        expire = datetime.utcnow() + expires_delta
+        expire = datetime.now(timezone.utc) + expires_delta
     else:
-        expire = datetime.utcnow() + timedelta(minutes=15)
+        expire = datetime.now(timezone.utc) + timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES)
     
-    to_encode.update({"exp": expire})
+    to_encode.update({
+        "exp": expire,
+        "type": "access"  # Token type for validation
+    })
     encoded_jwt = jwt.encode(to_encode, SECRET_KEY, algorithm=ALGORITHM)
     return encoded_jwt
+
+def create_refresh_token(data: dict) -> str:
+    """Create a longer-lived refresh token"""
+    to_encode = data.copy()
+    expire = datetime.now(timezone.utc) + timedelta(days=REFRESH_TOKEN_EXPIRE_DAYS)
+    to_encode.update({
+        "exp": expire,
+        "type": "refresh"  # Token type for validation
+    })
+    encoded_jwt = jwt.encode(to_encode, SECRET_KEY, algorithm=ALGORITHM)
+    return encoded_jwt
+
+def verify_token(token: str, token_type: Literal["access", "refresh"] = "access") -> dict:
+    """Verify token and return payload if valid"""
+    credentials_exception = HTTPException(
+        status_code=status.HTTP_401_UNAUTHORIZED,
+        detail="Could not validate credentials",
+        headers={"WWW-Authenticate": "Bearer"},
+    )
+    try:
+        payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
+        
+        # Validate token type
+        if payload.get("type") != token_type:
+            raise credentials_exception
+        
+        username: str = payload.get("sub")
+        if username is None:
+            raise credentials_exception
+        return payload
+    except JWTError:
+        raise credentials_exception
 
 async def get_current_user(token: str = Depends(oauth2_scheme), db: Session = Depends(database.get_db)):
     credentials_exception = HTTPException(
@@ -41,6 +78,11 @@ async def get_current_user(token: str = Depends(oauth2_scheme), db: Session = De
     )
     try:
         payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
+        
+        # Validate it's an access token, not a refresh token
+        if payload.get("type") != "access":
+            raise credentials_exception
+        
         username: str = payload.get("sub")
         if username is None:
             raise credentials_exception
@@ -56,3 +98,13 @@ async def get_current_user(token: str = Depends(oauth2_scheme), db: Session = De
             detail="Inactive user"
         )
     return user
+
+def require_admin(current_user: models.User = Depends(get_current_user)):
+    """Dependency to require admin access - use this for all admin endpoints"""
+    if not current_user.is_admin:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Admin access required"
+        )
+    return current_user
+

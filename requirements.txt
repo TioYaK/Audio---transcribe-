@@ -31,3 +31,5 @@ slowapi
 psycopg2-binary
 redis
 alembic
+rq
+prometheus-fastapi-instrumentator

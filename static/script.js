@@ -33,10 +33,10 @@ document.addEventListener('DOMContentLoaded', () => {
         return text.replace(/[&<>"']/g, function (m) { return ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": "&#39;" })[m]; });
     }
 
-    function showToast(msg, icon = 'ph-check-circle') {
+    function showToast(msg, icon = 'fa-solid fa-check-circle') {
         const toast = document.createElement('div');
         toast.className = 'toast-notification';
-        toast.innerHTML = `<i class="ph ${icon}"></i> <span>${msg}</span>`;
+        toast.innerHTML = `<i class="${icon}"></i> <span>${msg}</span>`;
         document.body.appendChild(toast);
 
         // Trigger reflow
@@ -378,7 +378,7 @@ document.addEventListener('DOMContentLoaded', () => {
             if ((e.ctrlKey || e.metaKey) && e.key === 's') {
                 e.preventDefault();
                 document.getElementById('btn-download-text').click();
-                showToast('Iniciando download...', 'ph-download-simple');
+                showToast('Iniciando download...', 'fa-solid fa-download');
             }
         }
     });
@@ -481,7 +481,7 @@ document.addEventListener('DOMContentLoaded', () => {
                         
                         <h4 style="margin-bottom:12px; color:var(--danger);">Zona de Perigo</h4>
                         <button class="action-btn delete" onclick="adminClearCache()" style="border:1px solid var(--danger); background: var(--bg-card); color: var(--danger);">
-                            <i class="ph ph-trash"></i> Limpar Banco/Cache
+                            <i class="fa-solid fa-trash"></i> Limpar Banco/Cache
                         </button>
                     </div>
                 </div>`;
@@ -515,7 +515,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 body: JSON.stringify({ keywords: val, keywords_red: valRed, keywords_green: valGreen })
             });
             await loadKeywords(); // Wait for reload
-            showToast('Keywords salvas e atualizadas!', 'ph-check');
+            showToast('Keywords salvas e atualizadas!', 'fa-solid fa-check');
         } catch (e) { alert('Erro ao salvar'); }
     };
 
@@ -525,7 +525,7 @@ document.addEventListener('DOMContentLoaded', () => {
         try {
             console.log("Sending clean request...");
             await authFetch('/api/history/clear', { method: 'POST' });
-            showToast('Banco de dados limpo!', 'ph-trash');
+            showToast('Banco de dados limpo!', 'fa-solid fa-trash');
             if (typeof loadAdminUsers === 'function') loadAdminUsers();
         } catch (e) {
             console.error(e);
@@ -628,18 +628,18 @@ document.addEventListener('DOMContentLoaded', () => {
         const text = document.getElementById('terminal-pause-text');
 
         if (terminalPaused) {
-            icon.className = 'ph ph-play';
+            icon.className = 'fa-solid fa-play';
             text.textContent = 'Continuar';
             btn.style.borderColor = 'var(--success)';
             btn.style.color = 'var(--success)';
-            showToast('Terminal pausado', 'ph-pause');
+            showToast('Terminal pausado', 'fa-solid fa-pause');
         } else {
-            icon.className = 'ph ph-pause';
+            icon.className = 'fa-solid fa-pause';
             text.textContent = 'Pausar';
             btn.style.borderColor = 'var(--border)';
             btn.style.color = 'var(--text)';
             loadLogs(); // Load immediately when resuming
-            showToast('Terminal retomado', 'ph-play');
+            showToast('Terminal retomado', 'fa-solid fa-play');
         }
     };
 
@@ -651,10 +651,10 @@ document.addEventListener('DOMContentLoaded', () => {
         const text = out.innerText || out.textContent;
 
         navigator.clipboard.writeText(text).then(() => {
-            showToast('Logs copiados!', 'ph-copy');
+            showToast('Logs copiados!', 'fa-solid fa-copy');
         }).catch(err => {
             console.error('Failed to copy:', err);
-            showToast('Erro ao copiar', 'ph-warning');
+            showToast('Erro ao copiar', 'fa-solid fa-triangle-exclamation');
         });
     };
 
@@ -662,8 +662,8 @@ document.addEventListener('DOMContentLoaded', () => {
         const out = document.getElementById('terminal-output');
         if (!out) return;
 
-        out.innerHTML = '<div style="display: flex; align-items: center; gap: 8px; color: rgba(16, 185, 129, 0.6);"><i class="ph ph-broom"></i><span>Display limpo. Aguardando novos logs...</span></div>';
-        showToast('Display limpo', 'ph-eraser');
+        out.innerHTML = '<div style="display: flex; align-items: center; gap: 8px; color: rgba(16, 185, 129, 0.6);"><i class="fa-solid fa-broom"></i><span>Display limpo. Aguardando novos logs...</span></div>';
+        showToast('Display limpo', 'fa-solid fa-eraser');
     };
 
 
@@ -671,8 +671,8 @@ document.addEventListener('DOMContentLoaded', () => {
     if (dashboardLink) dashboardLink.addEventListener('click', showDashboard);
     if (reportLink) reportLink.addEventListener('click', showReports);
     if (terminalLink) terminalLink.addEventListener('click', showTerminal);
-    if (joinQldLink) joinQldLink.addEventListener('click', (e) => { e.preventDefault(); updateNav(joinQldLink); showToast('Funcionalidade em desenvolvimento', 'ph-wrench'); });
-    if (joinCapLink) joinCapLink.addEventListener('click', (e) => { e.preventDefault(); updateNav(joinCapLink); showToast('Funcionalidade em desenvolvimento', 'ph-wrench'); });
+    if (joinQldLink) joinQldLink.addEventListener('click', (e) => { e.preventDefault(); updateNav(joinQldLink); showToast('Funcionalidade em desenvolvimento', 'fa-solid fa-wrench'); });
+    if (joinCapLink) joinCapLink.addEventListener('click', (e) => { e.preventDefault(); updateNav(joinCapLink); showToast('Funcionalidade em desenvolvimento', 'fa-solid fa-wrench'); });
 
     if (isAdmin && adminLink) {
         adminLink.classList.remove('hidden');
@@ -700,10 +700,10 @@ document.addEventListener('DOMContentLoaded', () => {
         const label = document.querySelector('.toggle-label');
         if (!icon || !label) return;
         if (theme === 'dark') {
-            icon.classList.replace('ph-sun', 'ph-moon');
+            icon.classList.replace('fa-sun', 'fa-moon');
             label.textContent = 'Modo Claro';
         } else {
-            icon.classList.replace('ph-moon', 'ph-sun');
+            icon.classList.replace('fa-moon', 'fa-sun');
             label.textContent = 'Modo Escuro';
         }
     };
@@ -994,7 +994,24 @@ document.addEventListener('DOMContentLoaded', () => {
             let statusHtml = '';
             let actionsHtml = '';
 
-            if (task.status === 'completed') {
+            const statusLower = (task.status || '').toLowerCase().trim();
+            console.log(`Debug Task ${task.task_id}: status='${task.status}', lower='${statusLower}'`);
+
+            // Styling for visibility safety
+            const btnStyle = "border: 1px solid var(--border); padding: 4px 8px; border-radius: 6px; display: inline-flex; align-items: center; gap: 4px; background: var(--bg-card);";
+
+            // Inline SVG Icons to guarantee visibility
+            const Icons = {
+                edit: '<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 3a2.828 2.828 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5L17 3z"></path></svg>',
+                trash: '<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"></polyline><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path></svg>',
+                eye: '<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"></path><circle cx="12" cy="12" r="3"></circle></svg>',
+                download: '<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="7 10 12 15 17 10"></polyline><line x1="12" y1="15" x2="12" y2="3"></line></svg>',
+                x: '<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>',
+                check: '<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"></polyline></svg>'
+            };
+
+            if (statusLower === 'completed' || statusLower === 'concluido' || !statusLower) {
+                // Default to completed options if status is weird but not failed/processing, to allow recovery
                 statusHtml = `<td>
             <select class="status-select" onchange="updateStatus('${task.task_id}', this.value)" onclick="event.stopPropagation()">
                 <option value="Pendente de análise" ${analysis === 'Pendente de análise' ? 'selected' : ''}>Pendente</option>
@@ -1004,17 +1021,18 @@ document.addEventListener('DOMContentLoaded', () => {
             </select>
         </td>`;
                 actionsHtml = `
-            <button class="action-btn" title="Renomear" onclick="startRename(event, '${task.task_id}')"><i class="ph ph-pencil-simple"></i></button>
-            <button class="action-btn" title="Ver" onclick="viewResult('${task.task_id}')"><i class="ph ph-eye"></i></button>
-            <button class="action-btn delete" title="Excluir" onclick="deleteTask(event, '${task.task_id}')"><i class="ph ph-trash"></i></button>
-            <button class="action-btn" title="Baixar" onclick="downloadFile('${task.task_id}')"><i class="ph ph-download-simple"></i></button>
+            <button class="action-btn" title="Renomear" onclick="startRename(event, '${task.task_id}')" style="${btnStyle}">${Icons.edit}</button>
+            <button class="action-btn" title="Excluir" onclick="deleteTask(event, '${task.task_id}')" style="${btnStyle}">${Icons.trash}</button>
+            <button class="action-btn" title="Ver" onclick="viewResult('${task.task_id}')" style="${btnStyle}">${Icons.eye}</button>
+            <button class="action-btn" title="Baixar" onclick="downloadFile('${task.task_id}')" style="${btnStyle}">${Icons.download}</button>
         `;
-            } else if (task.status === 'failed') {
+            } else if (statusLower === 'failed' || statusLower === 'error') {
                 statusHtml = `<td><span style="color:var(--danger)">Falha</span></td>`;
-                actionsHtml = `<button class="action-btn delete" title="Excluir" onclick="deleteTask(event, '${task.task_id}')"><i class="ph ph-trash"></i></button>`;
+                actionsHtml = `<button class="action-btn delete" title="Excluir" onclick="deleteTask(event, '${task.task_id}')" style="${btnStyle}">${Icons.trash}</button>`;
             } else {
-                statusHtml = `<td><span style="color:var(--primary)">Processando...</span></td>`;
-                actionsHtml = `<button class="action-btn delete" title="Cancelar" onclick="deleteTask(event, '${task.task_id}')"><i class="ph ph-trash"></i></button>`;
+                // Processing / Queued
+                statusHtml = `<td><span style="color:var(--primary)">${task.status || 'Processando...'}</span></td>`;
+                actionsHtml = `<button class="action-btn delete" title="Cancelar" onclick="deleteTask(event, '${task.task_id}')" style="${btnStyle}">${Icons.trash}</button>`;
             }
 
             tr.innerHTML = `
@@ -1025,8 +1043,8 @@ document.addEventListener('DOMContentLoaded', () => {
                 <span class="file-name-display" id="name-${task.task_id}">${escapeHtml(task.filename)}</span>
                 <div class="inline-edit-wrapper hidden" id="edit-${task.task_id}">
                     <input type="text" class="inline-input" id="input-${task.task_id}" value="${escapeHtml(task.filename)}" onclick="event.stopPropagation()">
-                    <button class="action-btn" onclick="saveName(event, '${task.task_id}')"><i class="ph-bold ph-check" style="color:var(--success)"></i></button>
-                    <button class="action-btn" onclick="cancelName(event, '${task.task_id}')"><i class="ph-bold ph-x" style="color:var(--danger)"></i></button>
+                    <button class="action-btn" onclick="saveName(event, '${task.task_id}')" style="color:var(--success)">${Icons.check}</button>
+                    <button class="action-btn" onclick="cancelName(event, '${task.task_id}')" style="color:var(--danger)">${Icons.x}</button>
                 </div>
             </div>
         </td>
@@ -1056,7 +1074,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
         // Show loading state
         if (!window.lastHistoryData) {
-            tbody.innerHTML = '<tr><td colspan="7" style="text-align:center; padding:24px; color:var(--text-muted);"><i class="ph ph-spinner ph-spin" style="margin-bottom:8px; font-size:1.5rem;"></i><br>Carregando histórico...</td></tr>';
+            tbody.innerHTML = '<tr><td colspan="7" style="text-align:center; padding:24px; color:var(--text-muted);"><i class="fa-solid fa-spinner fa-spin" style="margin-bottom:8px; font-size:1.5rem;"></i><br>Carregando histórico...</td></tr>';
         }
         showingAllHistory = showAll;
         try {
@@ -1240,7 +1258,7 @@ document.addEventListener('DOMContentLoaded', () => {
     // --- Clipboard ---
 
     window.copyToClipboard = (text) => {
-        navigator.clipboard.writeText(text).then(() => showToast('ID copiado!', 'ph-check')).catch(() => prompt("Copiar ID:", text));
+        navigator.clipboard.writeText(text).then(() => showToast('ID copiado!', 'fa-solid fa-check')).catch(() => prompt("Copiar ID:", text));
     };
 
     // Download Audio with debug
@@ -1301,7 +1319,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 <div class="header-bar">
                     <div style="display:flex; align-items:center; gap:16px;">
                         <button class="action-btn" onclick="closeFullView()" style="font-size:1.1rem; padding:8px 16px; background:var(--bg-card); border:1px solid var(--border); border-radius:8px;">
-                            <i class="ph-bold ph-arrow-left"></i> Voltar
+                            <i class="fa-solid fa-arrow-left"></i> Voltar
                         </button>
                         <div class="page-title"><h1 style="font-size:1.5rem">Transcrição</h1></div>
                     </div>
@@ -1311,7 +1329,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     <div>
                         <span style="display:block; font-size:0.8rem; color:var(--text-muted); margin-bottom:4px;">ARQUIVO</span>
                         <div style="font-weight:600; display:flex; align-items:center; gap:8px;">
-                            <i class="ph-fill ph-file-audio" style="color:var(--primary)"></i> ${escapeHtml(data.filename)}
+                            <i class="fa-solid fa-file-audio" style="color:var(--primary)"></i> ${escapeHtml(data.filename)}
                         </div>
                     </div>
                     <div>
@@ -1330,21 +1348,21 @@ document.addEventListener('DOMContentLoaded', () => {
 
                 <!-- Audio Player Container -->
                 <div id="full-player-container" class="glass-card hidden" style="margin-bottom:24px; display:flex; align-items:center; gap:16px; padding:16px;">
-                    <button class="player-btn" id="full-play-btn"><i class="ph-fill ph-play"></i></button>
+                    <button class="player-btn" id="full-play-btn"><i class="fa-solid fa-play"></i></button>
                     <span id="full-curr-time" style="font-family:monospace; font-size:0.9rem">0:00</span>
                     <div style="flex:1; height:6px; background:var(--bg); border-radius:3px; cursor:pointer; position:relative;" id="full-seek">
                          <div id="full-seek-fill" style="height:100%; width:0%; background:var(--primary); border-radius:3px; pointer-events:none;"></div>
                     </div>
                     <span id="full-dur-time" style="font-family:monospace; font-size:0.9rem">0:00</span>
-                    <i class="ph ph-speaker-high" id="full-vol-icon" style="cursor:pointer"></i>
+                    <i class="fa-solid fa-volume-up" id="full-vol-icon" style="cursor:pointer"></i>
                 </div>
 
                 <div class="glass-card" style="min-height:500px;">
                     <div style="display:flex; justify-content:flex-end; gap:8px; margin-bottom:16px;">
-                        <button class="action-btn" onclick="copyToClipboard('${id}')"><i class="ph ph-copy"></i> Copiar Texto</button>
-                        <button class="action-btn" onclick="window.downloadFile('${id}')"><i class="ph ph-file-text"></i> Baixar Texto</button>
-                        <button class="action-btn" onclick="window.downloadAudio('${id}')"><i class="ph ph-file-audio"></i> Baixar Áudio</button>
-                        <button class="action-btn delete" onclick="deleteTaskFromView(event, '${id}')"><i class="ph ph-trash"></i> Excluir</button>
+                        <button class="action-btn" onclick="copyToClipboard('${id}')"><i class="fa-solid fa-copy"></i> Copiar Texto</button>
+                        <button class="action-btn" onclick="window.downloadFile('${id}')"><i class="fa-solid fa-file-alt"></i> Baixar Texto</button>
+                        <button class="action-btn" onclick="window.downloadAudio('${id}')"><i class="fa-solid fa-file-audio"></i> Baixar Áudio</button>
+                        <button class="action-btn delete" onclick="deleteTaskFromView(event, '${id}')"><i class="fa-solid fa-trash"></i> Excluir</button>
                     </div>
 
                     <div class="tabs">
@@ -1420,8 +1438,8 @@ document.addEventListener('DOMContentLoaded', () => {
                             if (window.currentAudio.paused) window.currentAudio.play();
                             else window.currentAudio.pause();
                         };
-                        window.currentAudio.onplay = () => playBtn.innerHTML = '<i class="ph-fill ph-pause"></i>';
-                        window.currentAudio.onpause = () => playBtn.innerHTML = '<i class="ph-fill ph-play"></i>';
+                        window.currentAudio.onplay = () => playBtn.innerHTML = '<i class="fa-solid fa-pause"></i>';
+                        window.currentAudio.onpause = () => playBtn.innerHTML = '<i class="fa-solid fa-play"></i>';
                         window.currentAudio.ontimeupdate = () => {
                             const pct = (window.currentAudio.currentTime / window.currentAudio.duration) * 100;
                             seekFill.style.width = `${pct}%`;

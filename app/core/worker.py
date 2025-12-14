@@ -53,21 +53,5 @@ def process_transcription(task_id: str, file_path: str, options: dict = {}):
     finally:
         background_db.close()
 
-async def task_consumer():
-    while True:
-        try:
-            item = await task_queue.get()
-            if len(item) == 3:
-                task_id, file_path, options = item
-            else:
-                 task_id, file_path = item
-                 options = {}
-                 
-            # Run blocking transcription in a separate thread
-            loop = asyncio.get_running_loop()
-            await loop.run_in_executor(None, process_transcription, task_id, file_path, options)
-            
-            task_queue.task_done()
-        except Exception as e:
-            logger.error(f"Worker crashed: {e}")
-            await asyncio.sleep(1) # Prevent busy loop if crash
+# task_consumer is no longer needed with RQ
+# The process_transcription function is called directly by the RQ worker process

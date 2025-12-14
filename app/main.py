@@ -15,7 +15,7 @@ import uuid
 from app.core.config import settings, logger
 from app.core.limiter import limiter
 from app.core.queue import task_queue
-from app.core.worker import task_consumer
+
 
 # Import Database
 from app.database import engine, get_db
@@ -30,7 +30,7 @@ from app.api.v1.api import router as api_router
 # Create DB Tables (Pending Alembic)
 models.Base.metadata.create_all(bind=engine)
 
-app = FastAPI(title="Careca.ai - Transcription Service")
+app = FastAPI(title="Mirror.ia - Sua voz, refletida em inteligência")
 
 # Limiter Setup
 app.state.limiter = limiter
@@ -41,8 +41,8 @@ app.add_middleware(
     CORSMiddleware,
     allow_origins=settings.ALLOWED_ORIGINS,
     allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
+    allow_methods=["GET", "POST", "PUT", "DELETE", "PATCH", "OPTIONS"],
+    allow_headers=["Authorization", "Content-Type", "X-Requested-With"],
 )
 
 # Static & Templates
@@ -53,15 +53,20 @@ CACHE_BUST = str(int(time.time()))
 # Include API Router
 app.include_router(api_router)
 
+# Prometheus Instrumentator (Must be before startup)
+try:
+    from prometheus_fastapi_instrumentator import Instrumentator
+    Instrumentator().instrument(app).expose(app)
+    logger.info("Prometheus metrics initialized")
+except ImportError:
+    logger.warning("Prometheus instrumentator not installed.")
+
+
 @app.on_event("startup")
 async def startup_event():
     logger.info("Service starting up [Applied Improvements]...")
     
-    # 1. Start Workers
-    for i in range(2):
-        asyncio.create_task(task_consumer())
-        logger.info(f"Started task_consumer worker {i+1}")
-        
+
     # 2. Infrastructure Setup (Admin & Migrations)
     db = next(get_db())
     try:
@@ -71,7 +76,8 @@ async def startup_event():
             pwd = settings.ADMIN_PASSWORD
             if not pwd:
                 pwd = secrets.token_urlsafe(16)
-                logger.warning(f"ADMIN_PASSWORD not set. Generated: {pwd}")
+                # Security: Do NOT log the generated password
+                logger.warning("ADMIN_PASSWORD not set. A temporary password was generated - set ADMIN_PASSWORD in .env")
             
             db.add(models.User(
                 username="admin", 

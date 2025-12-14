@@ -57,7 +57,7 @@
                 <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px;">
                     <h3>🧠 Regras de Análise Dinâmicas</h3>
                     <button class="btn-primary" onclick="openRulesManager()" style="font-size: 0.9rem;">
-                        <i class="ph ph-plus"></i> Nova Regra
+                        <i class="fa-solid fa-plus"></i> Nova Regra
                     </button>
                 </div>
                 <p style="color: var(--text-muted); margin-bottom: 16px;">
@@ -104,7 +104,7 @@
                             ${rule.description ? `<div style="font-size: 0.8rem; color: var(--text-muted); font-style: italic;">${escapeHtml(rule.description)}</div>` : ''}
                         </div>
                         <button class="action-btn" onclick="deleteRule('${rule.id}')" title="Excluir regra" style="color: var(--danger);">
-                            <i class="ph ph-trash"></i>
+                            <i class="fa-solid fa-trash"></i>
                         </button>
                     </div>
                 </div>
@@ -142,7 +142,7 @@
                     <div class="modal-header">
                         <h3>Nova Regra de Análise</h3>
                         <button class="action-btn" onclick="closeRulesModal()">
-                            <i class="ph ph-x" style="font-size: 1.2rem;"></i>
+                            <i class="fa-solid fa-times" style="font-size: 1.2rem;"></i>
                         </button>
                     </div>
                     <div style="padding: 24px;">
@@ -179,7 +179,7 @@
                                 Cancelar
                             </button>
                             <button class="btn-primary" onclick="saveNewRule()">
-                                <i class="ph ph-check"></i> Salvar Regra
+                                <i class="fa-solid fa-check"></i> Salvar Regra
                             </button>
                         </div>
                     </div>
@@ -205,7 +205,7 @@
         const description = document.getElementById('rule-description-input')?.value.trim();
 
         if (!name || !keywords) {
-            showToast('Preencha nome e palavras-chave', 'ph-warning');
+            showToast('Preencha nome e palavras-chave', 'fa-solid fa-triangle-exclamation');
             return;
         }
 
@@ -218,13 +218,13 @@
 
             if (!res.ok) throw new Error('Failed to save rule');
 
-            showToast('Regra criada com sucesso!', 'ph-check');
+            showToast('Regra criada com sucesso!', 'fa-solid fa-check');
             closeRulesModal();
             loadRules(); // Recarrega a lista
 
         } catch (error) {
             console.error('Error saving rule:', error);
-            showToast('Erro ao salvar regra', 'ph-warning');
+            showToast('Erro ao salvar regra', 'fa-solid fa-triangle-exclamation');
         }
     }
 
@@ -235,12 +235,12 @@
             const res = await authFetch(`/api/admin/rules/${ruleId}`, { method: 'DELETE' });
             if (!res.ok) throw new Error('Failed to delete rule');
 
-            showToast('Regra excluída', 'ph-check');
+            showToast('Regra excluída', 'fa-solid fa-check');
             loadRules(); // Recarrega a lista
 
         } catch (error) {
             console.error('Error deleting rule:', error);
-            showToast('Erro ao excluir regra', 'ph-warning');
+            showToast('Erro ao excluir regra', 'fa-solid fa-triangle-exclamation');
         }
     }
 

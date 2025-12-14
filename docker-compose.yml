@@ -74,22 +74,89 @@ services:
             - driver: nvidia
               count: 1
               capabilities: [ gpu ]
-    # Healthcheck matches Dockerfile HEALTHCHECK
     healthcheck:
       test: [ "CMD", "curl", "-f", "http://localhost:8000/health" ]
       interval: 30s
       timeout: 10s
       retries: 3
       start_period: 60s
-    # Logging configuration
     logging:
       driver: "json-file"
       options:
         max-size: "10m"
         max-file: "3"
-    # Security options
     security_opt:
       - no-new-privileges:true
+    networks:
+      - careca-network
+
+  worker:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: careca-worker
+    restart: unless-stopped
+    command: rq worker transcription_tasks --url redis://redis:6379/0
+    env_file:
+      - .env
+    volumes:
+      - .:/app
+      - whisper-models:/home/appuser/.cache/huggingface
+      - uploads:/app/uploads
+      - database:/app/data
+    environment:
+      - DATABASE_URL=postgresql://${DB_USER}:${DB_PASSWORD}@db:5432/${DB_NAME:-carecadb}
+      - REDIS_URL=redis://redis:6379/0
+      # Worker needs GPU too
+      - DEVICE=${DEVICE:-cuda}
+    depends_on:
+      - db
+      - redis
+    healthcheck:
+      test: [ "CMD", "ls", "/app" ] # Simple check that container file system is accessible
+      interval: 30s
+      timeout: 10s
+      retries: 3
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: 1
+              capabilities: [ gpu ]
+    networks:
+      - careca-network
+
+  migration:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: careca-migration
+    command: alembic upgrade head
+    env_file:
+      - .env
+    environment:
+      - DATABASE_URL=postgresql://${DB_USER}:${DB_PASSWORD}@db:5432/${DB_NAME:-carecadb}
+    depends_on:
+      - db
+    networks:
+      - careca-network
+
+  db-backup:
+    image: prodrigestivill/postgres-backup-local
+    container_name: careca-db-backup
+    restart: always
+    environment:
+      - POSTGRES_HOST=db
+      - POSTGRES_DB=${DB_NAME:-carecadb}
+      - POSTGRES_USER=${DB_USER:-careca}
+      - POSTGRES_PASSWORD=${DB_PASSWORD:?DB_PASSWORD_required}
+      - SCHEDULE=@daily
+      - BACKUP_KEEP_DAYS=7
+    volumes:
+      - ./backups:/backups
+    depends_on:
+      - db
     networks:
       - careca-network
 

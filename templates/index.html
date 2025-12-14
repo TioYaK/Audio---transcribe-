@@ -4,14 +4,40 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Careca.ai</title>
+    <title>Mirror.ia</title>
     <link rel="icon"
         href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>🎙️</text></svg>">
-    <!-- Use Phosphor Icons for that futuristic look -->
-    <script src="https://cdn.jsdelivr.net/npm/@phosphor-icons/web"></script>
+    <!-- FontAwesome with multiple fallbacks -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css"
+        integrity="sha512-iecdLmaskl7CVkqkXNQ/ZH/XLlvWZOJyj7Yy7tcenmpD1ypASozpmT/E0iPtmFIB46ZmdtAc9eNBvH0H/ZpiBw=="
+        crossorigin="anonymous" referrerpolicy="no-referrer" />
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@fortawesome/fontawesome-free@6.4.0/css/all.min.css">
+
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <script src="https://unpkg.com/wavesurfer.js@7" defer></script>
     <link rel="stylesheet" href="/static/style.css?v={{ cache_bust }}">
+
+    <style>
+        /* Failsafe Icon Styling */
+        i.fa-solid,
+        i.fa-regular,
+        i.fa-brands,
+        i.fas,
+        i.far,
+        i.fab {
+            display: inline-block;
+            min-width: 1em;
+            min-height: 1em;
+            text-align: center;
+            font-style: normal;
+            text-rendering: auto;
+            -webkit-font-smoothing: antialiased;
+            font-family: "Font Awesome 6 Free";
+            font-weight: 900;
+        }
+
+        /* Fallback removed */
+    </style>
 </head>
 
 <body>
@@ -19,53 +45,56 @@
         <!-- Sidebar -->
         <aside class="sidebar">
             <div class="logo-area">
-                <i class="ph-fill ph-wave-sine" style="font-size: 1.5rem;"></i>
-                <span>Careca.ai</span>
+                <i class="fa-solid fa-wave-square" style="font-size: 1.5rem;"></i>
+                <span>Mirror.ia</span>
             </div>
 
             <button class="sidebar-toggle" id="sidebar-toggle" title="Colapsar sidebar">
-                <i class="ph ph-caret-left"></i>
+                <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none"
+                    stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                    <polyline points="15 18 9 12 15 6"></polyline>
+                </svg>
             </button>
 
             <nav class="nav-links">
                 <a href="#" class="nav-item active" id="dashboard-link">
-                    <i class="ph ph-squares-four"></i>
+                    <i class="fa-solid fa-th-large"></i>
                     <span>Dashboard</span>
                 </a>
                 </a>
                 <a href="#" class="nav-item" id="report-link">
-                    <i class="ph ph-chart-pie-slice"></i>
+                    <i class="fa-solid fa-chart-pie"></i>
                     <span>Relatórios</span>
                 </a>
                 <a href="#" class="nav-item" id="join-qld-link">
-                    <i class="ph ph-files"></i>
+                    <i class="fa-solid fa-file-invoice"></i>
                     <span>Juntar (QLD)</span>
                 </a>
                 <a href="#" class="nav-item" id="join-cap-link">
-                    <i class="ph ph-files"></i>
+                    <i class="fa-solid fa-file-contract"></i>
                     <span>Juntar (CAP)</span>
                 </a>
                 <a href="#" class="nav-item hidden" id="admin-link">
-                    <i class="ph ph-shield-check"></i>
+                    <i class="fa-solid fa-user-shield"></i>
                     <span>Admin</span>
                 </a>
                 <a href="#" class="nav-item hidden" id="terminal-link">
-                    <i class="ph ph-terminal-window"></i>
+                    <i class="fa-solid fa-terminal"></i>
                     <span>Terminal</span>
                 </a>
                 <a href="#" class="nav-item" id="export-link">
-                    <i class="ph ph-export"></i>
+                    <i class="fa-solid fa-file-export"></i>
                     <span>Exportar</span>
                 </a>
             </nav>
 
             <div class="nav-footer">
                 <div class="theme-toggle" id="theme-toggle">
-                    <i class="ph ph-sun" id="theme-icon"></i>
+                    <i class="fa-solid fa-sun" id="theme-icon"></i>
                     <span class="toggle-label">Modo Claro</span>
                 </div>
                 <div class="theme-toggle" id="logout-btn" style="margin-top: 8px; cursor: pointer;">
-                    <i class="ph ph-sign-out"></i>
+                    <i class="fa-solid fa-sign-out-alt"></i>
                     <span>Sair</span>
                 </div>
             </div>
@@ -77,11 +106,13 @@
             <div id="dashboard-view">
                 <div class="header-bar">
                     <div class="page-title">
-                        <!-- Removed Title/Desc as requested -->
+                        <h1 style="font-size: 1.8rem; margin:0;">Mirror.ia</h1>
+                        <p style="color:var(--text-muted); margin-top:4px;">Sua voz, refletida em inteligência.</p>
+
                     </div>
                     <div id="user-limit-badge"
                         style="display: flex; align-items: center; gap: 8px; padding: 8px 16px; background: var(--bg-card); border: 1px solid var(--border); border-radius: 12px;">
-                        <i class="ph ph-chart-bar" style="font-size: 1.2rem; color: var(--primary);"></i>
+                        <i class="fa-solid fa-chart-bar" style="font-size: 1.2rem; color: var(--primary);"></i>
                         <div style="display: flex; flex-direction: column; gap: 2px;">
                             <span
                                 style="font-size: 0.75rem; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.5px;">Transcrições</span>
@@ -95,7 +126,7 @@
                 <div class="upload-container" id="upload-zone">
                     <input type="file" id="file-input" multiple hidden accept="audio/*,video/*">
                     <div class="upload-icon-wrapper">
-                        <i class="ph ph-cloud-arrow-up"></i>
+                        <i class="fa-solid fa-cloud-upload-alt"></i>
                     </div>
                     <h3 style="margin-bottom:8px; font-weight:600">Arraste seus arquivos</h3>
                     <p style="color:var(--text-muted); margin-bottom:24px">ou clique para selecionar</p>
@@ -108,7 +139,7 @@
                         </label>
                     </div>
                     <button class="btn-primary btn-upload-trigger">
-                        <i class="ph-bold ph-upload-simple"></i>
+                        <i class="fa-solid fa-upload"></i>
                         Selecionar Arquivos
                     </button>
                 </div>
@@ -125,16 +156,15 @@
                     <div class="section-header"
                         style="display:flex; justify-content:space-between; align-items:center; margin-bottom:16px">
                         <div style="display:flex; align-items:center; gap:8px">
-                            <i class="ph-fill ph-clock-counter-clockwise"
-                                style="color:var(--primary); font-size:1.2rem"></i>
+                            <i class="fa-solid fa-history" style="color:var(--primary); font-size:1.2rem"></i>
                             <h3 style="margin:0">Histórico</h3>
                         </div>
                         <button class="action-btn" id="btn-clear-history" title="Limpar Histórico"><i
-                                class="ph ph-trash"></i></button>
+                                class="fa-solid fa-trash"></i></button>
                     </div>
 
                     <div id="empty-state" class="empty-state hidden">
-                        <div class="empty-icon"><i class="ph ph-files"></i></div>
+                        <div class="empty-icon"><i class="fa-regular fa-folder-open"></i></div>
                         <p>Nenhuma transcrição encontrada</p>
                     </div>
 
@@ -147,7 +177,7 @@
                                 <th style="padding:12px; font-weight:500; cursor:pointer; user-select:none"
                                     onclick="toggleSort('duration')">
                                     Duração
-                                    <i id="sort-duration-icon" class="ph-bold ph-arrows-down-up"
+                                    <i id="sort-duration-icon" class="fa-solid fa-sort"
                                         style="font-size:0.9em; vertical-align:middle; margin-left:4px"></i>
                                 </th>
                                 <th style="padding:12px; font-weight:500">Status</th>
@@ -165,8 +195,8 @@
                     <div class="modal-content">
                         <div class="modal-header">
                             <!-- Removed 'Detalhes da Transcrição' -->
-                            <button class="action-btn" id="btn-close-modal" style="margin-left:auto;"><i class="ph ph-x"
-                                    style="font-size:1.2rem;"></i></button>
+                            <button class="action-btn" id="btn-close-modal" style="margin-left:auto;"><i
+                                    class="fa-solid fa-times" style="font-size:1.2rem;"></i></button>
                         </div>
                         <div id="result-meta" style="margin-bottom:16px; color:var(--text-muted); font-size:0.9rem;">
                         </div>
@@ -178,14 +208,14 @@
 
                             <div class="controls-row" style="display:flex; align-items:center; gap:16px;">
                                 <button class="player-btn" id="play-pause-btn">
-                                    <i class="ph-fill ph-play" id="play-icon"></i>
+                                    <i class="fa-solid fa-play" id="play-icon"></i>
                                 </button>
                                 <span id="current-time" class="time-display">0:00</span>
                                 /
                                 <span id="duration-display" class="time-display">0:00</span>
 
                                 <div class="volume-container" style="margin-left:auto;">
-                                    <i class="ph ph-speaker-high" id="volume-icon"></i>
+                                    <i class="fa-solid fa-volume-up" id="volume-icon"></i>
                                     <input type="range" class="volume-slider" id="volume-slider" min="0" max="1"
                                         step="0.1" value="1">
                                 </div>
@@ -202,7 +232,7 @@
                         <div id="tab-content-text" class="tab-content active">
                             <!-- Search Bar -->
                             <div style="margin-bottom: 8px; position:relative;">
-                                <i class="ph ph-magnifying-glass"
+                                <i class="fa-solid fa-search"
                                     style="position: absolute; left: 10px; top: 50%; transform: translateY(-50%); color: var(--text-muted);"></i>
                                 <input type="text" id="transcription-search"
                                     placeholder="Buscar na transcrição... (Enter para próxima)"
@@ -217,7 +247,7 @@
                             <div style="display: flex; justify-content: flex-end; margin-bottom: 8px;">
                                 <button class="action-btn" id="btn-regenerate-analysis" onclick="regenerateAnalysis()"
                                     style="border: 1px solid var(--primary); color: var(--primary); padding: 6px 12px; display: flex; align-items: center; gap: 6px; font-size: 0.85rem;">
-                                    <i class="ph ph-arrows-clockwise"></i> Regenerar Análise
+                                    <i class="fa-solid fa-sync"></i> Regenerar Análise
                                 </button>
                             </div>
                             <div id="result-summary" class="ai-content">
@@ -237,10 +267,10 @@
 
                         <div style="display:flex; justify-content:flex-end; gap:12px; margin-top:16px;">
                             <button class="action-btn" id="btn-copy-text" style="border:1px solid var(--border);">
-                                <i class="ph ph-copy"></i> Copiar
+                                <i class="fa-solid fa-copy"></i> Copiar
                             </button>
                             <button class="action-btn" id="btn-download-audio" style="border:1px solid var(--border);">
-                                <i class="ph ph-file-audio"></i> Baixar Áudio
+                                <i class="fa-solid fa-file-audio"></i> Baixar Áudio
                             </button>
                             <button class="btn-upload-trigger" id="btn-download-text"
                                 style="margin:0; font-size:0.9rem;">
@@ -294,7 +324,7 @@
                         <div style="display: flex; align-items: center; gap: 12px;">
                             <div
                                 style="width: 48px; height: 48px; background: linear-gradient(135deg, #10b981 0%, #059669 100%); border-radius: 12px; display: flex; align-items: center; justify-content: center; box-shadow: 0 4px 12px rgba(16, 185, 129, 0.3);">
-                                <i class="ph-fill ph-terminal-window" style="font-size: 1.5rem; color: white;"></i>
+                                <i class="fa-solid fa-terminal" style="font-size: 1.5rem; color: white;"></i>
                             </div>
                             <div>
                                 <h1
@@ -308,24 +338,24 @@
                     <div style="display:flex; align-items:center; gap:12px;">
                         <button class="action-btn" id="terminal-pause-btn" onclick="toggleTerminalPause()"
                             style="border:1px solid var(--border); background: var(--bg-card); padding: 8px 14px; display: flex; align-items: center; gap: 6px; transition: all 0.3s ease;">
-                            <i class="ph ph-pause" id="terminal-pause-icon"></i>
+                            <i class="fa-solid fa-pause" id="terminal-pause-icon"></i>
                             <span id="terminal-pause-text">Pausar</span>
                         </button>
                         <button class="action-btn" onclick="copyTerminalLogs()"
                             style="border:1px solid var(--border); background: var(--bg-card); padding: 8px 14px; display: flex; align-items: center; gap: 6px;">
-                            <i class="ph ph-copy"></i> Copiar
+                            <i class="fa-solid fa-copy"></i> Copiar
                         </button>
                         <button class="action-btn" onclick="clearTerminalDisplay()"
                             style="border:1px solid var(--border); background: var(--bg-card); padding: 8px 14px; display: flex; align-items: center; gap: 6px;">
-                            <i class="ph ph-eraser"></i> Limpar
+                            <i class="fa-solid fa-eraser"></i> Limpar
                         </button>
                         <button class="action-btn delete" onclick="adminClearCache()"
                             style="border:1px solid var(--danger); background: var(--bg-card); color: var(--danger); padding: 8px 14px; display: flex; align-items: center; gap: 6px;">
-                            <i class="ph ph-trash"></i> Limpar Cache
+                            <i class="fa-solid fa-trash"></i> Limpar Cache
                         </button>
                         <button class="action-btn" onclick="regenerateAllAnalyses()"
                             style="border:1px solid var(--primary); background: var(--bg-card); color: var(--primary); padding: 8px 14px; display: flex; align-items: center; gap: 6px;">
-                            <i class="ph ph-arrows-clockwise"></i> Regenerar Análises
+                            <i class="fa-solid fa-sync"></i> Regenerar Análises
                         </button>
                         <div
                             style="display: flex; align-items: center; gap: 6px; padding: 6px 12px; background: var(--bg-card); border: 1px solid var(--border); border-radius: 8px;">
@@ -356,7 +386,7 @@
                         </div>
                         <div
                             style="font-family: monospace; font-size: 0.75rem; color: rgba(255, 255, 255, 0.5); letter-spacing: 0.5px;">
-                            careca.ai@server ~ /var/log/app
+                            mirror.ia@server ~ /var/log/app
                         </div>
                         <div style="display: flex; align-items: center; gap: 8px;">
                             <div style="font-size: 0.7rem; color: rgba(255, 255, 255, 0.4); font-family: monospace;">
@@ -369,7 +399,7 @@
                     <div id="terminal-output"
                         style="background: transparent; color: #10b981; padding: 20px; font-family: 'Courier New', monospace; height: 600px; overflow-y: auto; white-space: pre-wrap; font-size: 0.85rem; line-height: 1.6; position: relative;">
                         <div style="display: flex; align-items: center; gap: 8px; color: rgba(16, 185, 129, 0.6);">
-                            <i class="ph ph-spinner" style="animation: spin 1s linear infinite;"></i>
+                            <i class="fa-solid fa-spinner fa-spin"></i>
                             <span>Carregando logs do servidor...</span>
                         </div>
                     </div>
@@ -379,11 +409,11 @@
                         style="background: linear-gradient(135deg, rgba(30, 41, 59, 0.8) 0%, rgba(15, 23, 42, 0.8) 100%); padding: 8px 16px; display: flex; align-items: center; justify-content: space-between; border-top: 1px solid rgba(255, 255, 255, 0.1); font-family: monospace; font-size: 0.7rem; color: rgba(255, 255, 255, 0.5);">
                         <div style="display: flex; align-items: center; gap: 16px;">
                             <div style="display: flex; align-items: center; gap: 6px;">
-                                <i class="ph ph-clock"></i>
+                                <i class="fa-regular fa-clock"></i>
                                 <span id="terminal-timestamp">--:--:--</span>
                             </div>
                             <div style="display: flex; align-items: center; gap: 6px;">
-                                <i class="ph ph-database"></i>
+                                <i class="fa-solid fa-database"></i>
                                 <span id="terminal-size">0 KB</span>
                             </div>
                         </div>
