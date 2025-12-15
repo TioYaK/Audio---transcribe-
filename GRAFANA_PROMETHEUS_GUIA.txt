@@ -1,0 +1,387 @@
+================================================================================
+✅ GRAFANA + PROMETHEUS - IMPLEMENTADO
+================================================================================
+
+Data: 14/12/2025 16:45
+Status: ✅ PRONTO PARA USAR
+Versão: 2.3 (Observabilidade Completa)
+
+================================================================================
+🎯 O QUE FOI IMPLEMENTADO
+================================================================================
+
+1. ✅ PROMETHEUS
+   - Container: careca-prometheus
+   - Porta: 9090
+   - Coleta métricas a cada 15s
+   - Retenção: 30 dias
+   - Configuração: prometheus.yml
+
+2. ✅ GRAFANA
+   - Container: careca-grafana
+   - Porta: 3000
+   - Usuário: admin
+   - Senha: admin (padrão)
+   - Datasource Prometheus configurado automaticamente
+
+3. ✅ MÉTRICAS AVANÇADAS
+   - Módulo: app/core/metrics.py
+   - Worker instrumentado
+   - Endpoint: /metrics
+
+================================================================================
+🚀 COMO USAR
+================================================================================
+
+PASSO 1: REBUILD DO DOCKER
+───────────────────────────────────────────────────────────────────────────────
+
+docker-compose up --build -d
+
+PASSO 2: VERIFICAR CONTAINERS
+───────────────────────────────────────────────────────────────────────────────
+
+docker ps
+
+Você deve ver:
+- careca-app
+- careca-worker-1
+- careca-worker-2
+- careca-prometheus ← NOVO
+- careca-grafana ← NOVO
+- careca-db
+- careca-redis
+- careca-nginx
+
+PASSO 3: ACESSAR PROMETHEUS
+───────────────────────────────────────────────────────────────────────────────
+
+URL: http://localhost:9090
+
+VERIFICAR TARGETS:
+1. Ir em Status → Targets
+2. Verificar que todos estão "UP":
+   - fastapi-app (app:8000)
+   - workers (worker:8000, worker-2:8000)
+   - prometheus (localhost:9090)
+
+TESTAR QUERY:
+1. Ir em Graph
+2. Digitar: transcriptions_total
+3. Clicar em Execute
+4. Ver métricas!
+
+PASSO 4: ACESSAR GRAFANA
+───────────────────────────────────────────────────────────────────────────────
+
+URL: http://localhost:3000
+
+LOGIN:
+- Usuário: admin
+- Senha: admin
+
+PRIMEIRA VEZ:
+1. Grafana vai pedir para trocar senha (pode pular)
+2. Datasource Prometheus já está configurado!
+3. Pronto para criar dashboards
+
+================================================================================
+📊 CRIAR SEU PRIMEIRO DASHBOARD
+================================================================================
+
+OPÇÃO 1: DASHBOARD MANUAL
+───────────────────────────────────────────────────────────────────────────────
+
+1. No Grafana, clicar em "+" → "Dashboard"
+2. Clicar em "Add visualization"
+3. Selecionar "Prometheus" como datasource
+4. Adicionar queries:
+
+PAINEL 1: Total de Transcrições
+Query: sum(transcriptions_total)
+Tipo: Stat
+Título: Total de Transcrições
+
+PAINEL 2: Taxa de Sucesso
+Query: sum(transcriptions_total{status="success"}) / sum(transcriptions_total) * 100
+Tipo: Gauge
+Título: Taxa de Sucesso (%)
+Unit: percent (0-100)
+
+PAINEL 3: Transcrições por Hora
+Query: rate(transcriptions_total[1h])
+Tipo: Time series
+Título: Transcrições/Hora
+
+PAINEL 4: Tempo Médio
+Query: rate(transcription_duration_seconds_sum[5m]) / rate(transcription_duration_seconds_count[5m])
+Tipo: Stat
+Título: Tempo Médio (s)
+Unit: seconds
+
+PAINEL 5: Fila de Tarefas
+Query: queue_size
+Tipo: Stat
+Título: Tarefas na Fila
+
+PAINEL 6: Cache Hit Rate
+Query: cache_hit_rate_percent{cache_type="transcription"}
+Tipo: Gauge
+Título: Cache Hit Rate (%)
+Unit: percent (0-100)
+
+5. Salvar dashboard: "Save dashboard"
+
+────────────────────────────────────────────────────────────────────────────────
+
+OPÇÃO 2: IMPORTAR DASHBOARD PRONTO (Recomendado)
+───────────────────────────────────────────────────────────────────────────────
+
+Vou criar um dashboard JSON pronto para você importar!
+
+================================================================================
+🔍 QUERIES ÚTEIS DO PROMETHEUS
+================================================================================
+
+TRANSCRIÇÕES:
+─────────────
+
+# Total de transcrições
+sum(transcriptions_total)
+
+# Transcrições por status
+sum by (status) (transcriptions_total)
+
+# Taxa de erro
+sum(transcriptions_total{status="error"}) / sum(transcriptions_total) * 100
+
+# Transcrições nas últimas 24h
+increase(transcriptions_total[24h])
+
+# Transcrições por hora (taxa)
+rate(transcriptions_total[1h])
+
+PERFORMANCE:
+────────────
+
+# Tempo médio de processamento
+rate(transcription_duration_seconds_sum[5m]) / rate(transcription_duration_seconds_count[5m])
+
+# Percentil 95 (95% das transcrições levam menos que isso)
+histogram_quantile(0.95, rate(transcription_duration_seconds_bucket[5m]))
+
+# Percentil 99
+histogram_quantile(0.99, rate(transcription_duration_seconds_bucket[5m]))
+
+CACHE:
+──────
+
+# Cache hit rate
+cache_hit_rate_percent{cache_type="transcription"}
+
+# Total de cache hits
+sum(cache_operations_total{result="hit"})
+
+# Total de cache misses
+sum(cache_operations_total{result="miss"})
+
+# Hit rate calculado
+sum(cache_operations_total{result="hit"}) / sum(cache_operations_total) * 100
+
+FILA:
+─────
+
+# Tamanho atual da fila
+queue_size
+
+# Workers ativos
+active_workers
+
+# Tarefas ativas
+active_tasks
+
+RECURSOS:
+─────────
+
+# Uso de GPU
+gpu_utilization_percent
+
+# Memória GPU
+gpu_memory_used_bytes / 1024 / 1024 / 1024  # GB
+
+# Uso de RAM
+ram_usage_bytes / 1024 / 1024 / 1024  # GB
+
+# Temperatura da GPU
+gpu_temperature_celsius
+
+ERROS:
+──────
+
+# Total de erros
+sum(errors_total)
+
+# Erros por tipo
+sum by (error_type) (errors_total)
+
+# Taxa de erros nas últimas 5 minutos
+rate(errors_total[5m])
+
+================================================================================
+🎨 DICAS DE VISUALIZAÇÃO
+================================================================================
+
+STAT (Número Grande):
+- Bom para: Total, Média, Último valor
+- Exemplos: Total de transcrições, Fila atual, Workers ativos
+
+GAUGE (Medidor):
+- Bom para: Percentuais, Uso de recursos
+- Exemplos: Taxa de sucesso, Cache hit rate, Uso de GPU
+
+TIME SERIES (Gráfico de Linha):
+- Bom para: Tendências ao longo do tempo
+- Exemplos: Transcrições/hora, Tempo de processamento, Erros
+
+BAR GAUGE (Barra Horizontal):
+- Bom para: Comparações
+- Exemplos: Erros por tipo, Transcrições por modelo
+
+HEATMAP:
+- Bom para: Distribuições
+- Exemplos: Distribuição de tempo de processamento
+
+TABLE:
+- Bom para: Dados detalhados
+- Exemplos: Últimos erros, Tarefas recentes
+
+================================================================================
+⚠️ TROUBLESHOOTING
+================================================================================
+
+PROBLEMA: Prometheus não está coletando métricas
+SOLUÇÃO:
+1. Verificar se app está expondo /metrics:
+   curl http://localhost:8000/metrics
+   
+2. Verificar targets no Prometheus:
+   http://localhost:9090/targets
+   
+3. Ver logs do Prometheus:
+   docker logs careca-prometheus
+
+────────────────────────────────────────────────────────────────────────────────
+
+PROBLEMA: Grafana não conecta no Prometheus
+SOLUÇÃO:
+1. Verificar se Prometheus está rodando:
+   docker ps | grep prometheus
+   
+2. Testar conexão:
+   docker exec careca-grafana ping prometheus
+   
+3. Recriar datasource:
+   Configuration → Data sources → Add → Prometheus
+   URL: http://prometheus:9090
+
+────────────────────────────────────────────────────────────────────────────────
+
+PROBLEMA: Métricas não aparecem
+SOLUÇÃO:
+1. Fazer upload de um áudio para gerar métricas
+2. Aguardar 15s (intervalo de coleta)
+3. Verificar no Prometheus:
+   http://localhost:9090/graph
+   Query: transcriptions_total
+
+────────────────────────────────────────────────────────────────────────────────
+
+PROBLEMA: Dashboard vazio
+SOLUÇÃO:
+1. Verificar time range (canto superior direito)
+2. Mudar para "Last 24 hours"
+3. Fazer algumas transcrições para gerar dados
+
+================================================================================
+📈 PRÓXIMOS PASSOS
+================================================================================
+
+1. [ ] Rebuild Docker
+2. [ ] Acessar Prometheus (http://localhost:9090)
+3. [ ] Verificar targets
+4. [ ] Acessar Grafana (http://localhost:3000)
+5. [ ] Criar primeiro dashboard
+6. [ ] Fazer upload de áudio para gerar métricas
+7. [ ] Ver métricas em tempo real!
+
+OPCIONAL:
+8. [ ] Implementar alertas (Alertmanager)
+9. [ ] Adicionar mais dashboards
+10. [ ] Configurar notificações (email, slack)
+
+================================================================================
+🎓 RECURSOS ÚTEIS
+================================================================================
+
+PROMETHEUS:
+- Documentação: https://prometheus.io/docs/
+- Query language: https://prometheus.io/docs/prometheus/latest/querying/basics/
+- Best practices: https://prometheus.io/docs/practices/naming/
+
+GRAFANA:
+- Documentação: https://grafana.com/docs/
+- Dashboards prontos: https://grafana.com/grafana/dashboards/
+- Tutoriais: https://grafana.com/tutorials/
+
+MÉTRICAS:
+- Prometheus client (Python): https://github.com/prometheus/client_python
+- Best practices: https://prometheus.io/docs/practices/instrumentation/
+
+================================================================================
+✅ CHECKLIST FINAL
+================================================================================
+
+IMPLEMENTAÇÃO:
+- [✅] prometheus.yml criado
+- [✅] Grafana datasource configurado
+- [✅] Grafana dashboard provider configurado
+- [✅] docker-compose.yml atualizado
+- [✅] Métricas avançadas implementadas
+- [✅] Worker instrumentado
+- [ ] Docker rebuild executado
+- [ ] Prometheus acessível
+- [ ] Grafana acessível
+- [ ] Dashboards criados
+- [ ] Métricas sendo coletadas
+
+VALIDAÇÃO:
+- [ ] Prometheus coleta métricas do app
+- [ ] Prometheus coleta métricas dos workers
+- [ ] Grafana conecta no Prometheus
+- [ ] Dashboards mostram dados
+- [ ] Métricas atualizam em tempo real
+
+================================================================================
+🎉 CONCLUSÃO
+================================================================================
+
+VOCÊ AGORA TEM:
+
+✅ Prometheus coletando métricas a cada 15s
+✅ Grafana para visualização
+✅ Métricas avançadas de negócio
+✅ Métricas de performance
+✅ Métricas de recursos
+✅ Pronto para criar dashboards!
+
+PRÓXIMO COMANDO:
+docker-compose up --build -d
+
+DEPOIS:
+- Prometheus: http://localhost:9090
+- Grafana: http://localhost:3000 (admin/admin)
+- Métricas: http://localhost:8000/metrics
+
+================================================================================
+FIM DO GUIA
+================================================================================

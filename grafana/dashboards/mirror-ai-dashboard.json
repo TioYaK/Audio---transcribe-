@@ -1,0 +1,373 @@
+{
+    "dashboard": {
+        "title": "Mirror.ia - Transcrições",
+        "tags": [
+            "mirror.ia",
+            "transcription"
+        ],
+        "timezone": "browser",
+        "editable": true,
+        "hideControls": false,
+        "graphTooltip": 1,
+        "panels": [
+            {
+                "id": 1,
+                "gridPos": {
+                    "h": 4,
+                    "w": 6,
+                    "x": 0,
+                    "y": 0
+                },
+                "type": "stat",
+                "title": "Total de Transcrições",
+                "targets": [
+                    {
+                        "expr": "sum(transcriptions_total)",
+                        "refId": "A"
+                    }
+                ],
+                "fieldConfig": {
+                    "defaults": {
+                        "color": {
+                            "mode": "thresholds"
+                        },
+                        "thresholds": {
+                            "mode": "absolute",
+                            "steps": [
+                                {
+                                    "color": "green",
+                                    "value": null
+                                }
+                            ]
+                        }
+                    }
+                }
+            },
+            {
+                "id": 2,
+                "gridPos": {
+                    "h": 4,
+                    "w": 6,
+                    "x": 6,
+                    "y": 0
+                },
+                "type": "gauge",
+                "title": "Taxa de Sucesso (%)",
+                "targets": [
+                    {
+                        "expr": "sum(transcriptions_total{status=\"success\"}) / sum(transcriptions_total) * 100",
+                        "refId": "A"
+                    }
+                ],
+                "fieldConfig": {
+                    "defaults": {
+                        "unit": "percent",
+                        "min": 0,
+                        "max": 100,
+                        "thresholds": {
+                            "mode": "absolute",
+                            "steps": [
+                                {
+                                    "color": "red",
+                                    "value": 0
+                                },
+                                {
+                                    "color": "yellow",
+                                    "value": 80
+                                },
+                                {
+                                    "color": "green",
+                                    "value": 95
+                                }
+                            ]
+                        }
+                    }
+                }
+            },
+            {
+                "id": 3,
+                "gridPos": {
+                    "h": 4,
+                    "w": 6,
+                    "x": 12,
+                    "y": 0
+                },
+                "type": "stat",
+                "title": "Tempo Médio (s)",
+                "targets": [
+                    {
+                        "expr": "rate(transcription_duration_seconds_sum[5m]) / rate(transcription_duration_seconds_count[5m])",
+                        "refId": "A"
+                    }
+                ],
+                "fieldConfig": {
+                    "defaults": {
+                        "unit": "s",
+                        "decimals": 1,
+                        "color": {
+                            "mode": "thresholds"
+                        },
+                        "thresholds": {
+                            "mode": "absolute",
+                            "steps": [
+                                {
+                                    "color": "green",
+                                    "value": null
+                                },
+                                {
+                                    "color": "yellow",
+                                    "value": 30
+                                },
+                                {
+                                    "color": "red",
+                                    "value": 60
+                                }
+                            ]
+                        }
+                    }
+                }
+            },
+            {
+                "id": 4,
+                "gridPos": {
+                    "h": 4,
+                    "w": 6,
+                    "x": 18,
+                    "y": 0
+                },
+                "type": "gauge",
+                "title": "Cache Hit Rate (%)",
+                "targets": [
+                    {
+                        "expr": "sum(cache_operations_total{result=\"hit\"}) / sum(cache_operations_total) * 100",
+                        "refId": "A"
+                    }
+                ],
+                "fieldConfig": {
+                    "defaults": {
+                        "unit": "percent",
+                        "min": 0,
+                        "max": 100,
+                        "thresholds": {
+                            "mode": "absolute",
+                            "steps": [
+                                {
+                                    "color": "red",
+                                    "value": 0
+                                },
+                                {
+                                    "color": "yellow",
+                                    "value": 50
+                                },
+                                {
+                                    "color": "green",
+                                    "value": 80
+                                }
+                            ]
+                        }
+                    }
+                }
+            },
+            {
+                "id": 5,
+                "gridPos": {
+                    "h": 8,
+                    "w": 12,
+                    "x": 0,
+                    "y": 4
+                },
+                "type": "timeseries",
+                "title": "Transcrições ao Longo do Tempo",
+                "targets": [
+                    {
+                        "expr": "sum by (status) (rate(transcriptions_total[5m]) * 60)",
+                        "legendFormat": "{{status}}",
+                        "refId": "A"
+                    }
+                ],
+                "fieldConfig": {
+                    "defaults": {
+                        "unit": "short",
+                        "custom": {
+                            "drawStyle": "line",
+                            "lineInterpolation": "smooth",
+                            "fillOpacity": 10
+                        }
+                    }
+                }
+            },
+            {
+                "id": 6,
+                "gridPos": {
+                    "h": 8,
+                    "w": 12,
+                    "x": 12,
+                    "y": 4
+                },
+                "type": "timeseries",
+                "title": "Tempo de Processamento (Percentis)",
+                "targets": [
+                    {
+                        "expr": "histogram_quantile(0.50, rate(transcription_duration_seconds_bucket[5m]))",
+                        "legendFormat": "p50 (mediana)",
+                        "refId": "A"
+                    },
+                    {
+                        "expr": "histogram_quantile(0.95, rate(transcription_duration_seconds_bucket[5m]))",
+                        "legendFormat": "p95",
+                        "refId": "B"
+                    },
+                    {
+                        "expr": "histogram_quantile(0.99, rate(transcription_duration_seconds_bucket[5m]))",
+                        "legendFormat": "p99",
+                        "refId": "C"
+                    }
+                ],
+                "fieldConfig": {
+                    "defaults": {
+                        "unit": "s"
+                    }
+                }
+            },
+            {
+                "id": 7,
+                "gridPos": {
+                    "h": 4,
+                    "w": 4,
+                    "x": 0,
+                    "y": 12
+                },
+                "type": "stat",
+                "title": "Fila de Tarefas",
+                "targets": [
+                    {
+                        "expr": "queue_size",
+                        "refId": "A"
+                    }
+                ],
+                "fieldConfig": {
+                    "defaults": {
+                        "color": {
+                            "mode": "thresholds"
+                        },
+                        "thresholds": {
+                            "mode": "absolute",
+                            "steps": [
+                                {
+                                    "color": "green",
+                                    "value": null
+                                },
+                                {
+                                    "color": "yellow",
+                                    "value": 10
+                                },
+                                {
+                                    "color": "red",
+                                    "value": 50
+                                }
+                            ]
+                        }
+                    }
+                }
+            },
+            {
+                "id": 8,
+                "gridPos": {
+                    "h": 4,
+                    "w": 4,
+                    "x": 4,
+                    "y": 12
+                },
+                "type": "stat",
+                "title": "Workers Ativos",
+                "targets": [
+                    {
+                        "expr": "active_workers",
+                        "refId": "A"
+                    }
+                ]
+            },
+            {
+                "id": 9,
+                "gridPos": {
+                    "h": 4,
+                    "w": 4,
+                    "x": 8,
+                    "y": 12
+                },
+                "type": "stat",
+                "title": "Total de Erros",
+                "targets": [
+                    {
+                        "expr": "sum(errors_total)",
+                        "refId": "A"
+                    }
+                ],
+                "fieldConfig": {
+                    "defaults": {
+                        "color": {
+                            "mode": "thresholds"
+                        },
+                        "thresholds": {
+                            "mode": "absolute",
+                            "steps": [
+                                {
+                                    "color": "green",
+                                    "value": null
+                                },
+                                {
+                                    "color": "yellow",
+                                    "value": 10
+                                },
+                                {
+                                    "color": "red",
+                                    "value": 50
+                                }
+                            ]
+                        }
+                    }
+                }
+            },
+            {
+                "id": 10,
+                "gridPos": {
+                    "h": 4,
+                    "w": 12,
+                    "x": 12,
+                    "y": 12
+                },
+                "type": "bargauge",
+                "title": "Erros por Tipo",
+                "targets": [
+                    {
+                        "expr": "sum by (error_type) (errors_total)",
+                        "legendFormat": "{{error_type}}",
+                        "refId": "A"
+                    }
+                ],
+                "options": {
+                    "orientation": "horizontal",
+                    "displayMode": "gradient"
+                }
+            }
+        ],
+        "refresh": "30s",
+        "time": {
+            "from": "now-6h",
+            "to": "now"
+        },
+        "timepicker": {
+            "refresh_intervals": [
+                "5s",
+                "10s",
+                "30s",
+                "1m",
+                "5m",
+                "15m",
+                "30m",
+                "1h"
+            ]
+        },
+        "version": 1
+    }
+}

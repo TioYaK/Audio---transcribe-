@@ -1,6 +1,7 @@
 
 import asyncio
 from time import perf_counter
+import os
 from app import crud
 from app.database import SessionLocal
 from app.core.config import logger
@@ -8,6 +9,14 @@ from app.core.queue import task_queue
 from app.core.services import whisper_service
 from app.core.services import spell_checker
 from app.services.noise_reduction import reduce_noise
+
+# Import metrics
+from app.core.metrics import (
+    record_transcription,
+    record_error,
+    file_size_bytes,
+    audio_duration_seconds
+)
 
 def process_transcription(task_id: str, file_path: str, options: dict = {}):
     background_db = SessionLocal()
@@ -17,12 +26,19 @@ def process_transcription(task_id: str, file_path: str, options: dict = {}):
         logger.info(f"Starting processing for task {task_id}")
         
         # VALIDATION: Check if file exists before processing
-        import os
         if not os.path.exists(file_path):
             error_msg = f"File not found: {file_path} (deleted or moved)"
             logger.error(f"Task {task_id} failed: {error_msg}")
             task_store.update_status(task_id, "failed", error_message=error_msg)
+            
+            # METRICS: Record error
+            record_error('file_not_found', 'transcription')
+            record_transcription('error', 0)
             return
+        
+        # METRICS: Record file size
+        file_size = os.path.getsize(file_path)
+        file_size_bytes.observe(file_size)
         
         task_store.update_status(task_id, "processing")
         
@@ -50,6 +66,9 @@ def process_transcription(task_id: str, file_path: str, options: dict = {}):
 
         result = whisper_service.process_task(cleaned_audio_path, options=options, progress_callback=update_prog, rules=rules)
         processing_time = perf_counter() - start_ts
+        
+        # METRICS: Record audio duration
+        audio_duration_seconds.observe(result.get("duration", 0))
         
         # Get original text
         original_text = result.get("text", "")
@@ -85,6 +104,14 @@ def process_transcription(task_id: str, file_path: str, options: dict = {}):
         
         logger.info(f"Task {task_id} completed successfully.")
         
+        # METRICS: Record successful transcription
+        record_transcription(
+            status='success',
+            duration=processing_time,
+            model=options.get('model', 'medium'),
+            device='cuda' if 'cuda' in str(options.get('device', 'cuda')) else 'cpu'
+        )
+        
         # CLEANUP: Free RAM and GPU memory after task completion
         try:
             from app.utils.memory_cleanup import cleanup_after_task
@@ -93,8 +120,13 @@ def process_transcription(task_id: str, file_path: str, options: dict = {}):
             logger.warning(f"Post-task cleanup failed: {e}")
 
     except Exception as e:
+        processing_time = perf_counter() - start_ts
         logger.error(f"Task {task_id} failed: {e}")
         task_store.update_status(task_id, "failed", error_message=str(e))
+        
+        # METRICS: Record failed transcription
+        record_transcription('error', processing_time)
+        record_error('processing_error', 'transcription')
     finally:
         background_db.close()
 

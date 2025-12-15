@@ -1,0 +1,50 @@
+global:
+  scrape_interval: 15s
+  evaluation_interval: 15s
+  external_labels:
+    monitor: 'mirror-ai'
+
+# Alertmanager configuration (será adicionado depois)
+# alerting:
+#   alertmanagers:
+#     - static_configs:
+#         - targets: ['alertmanager:9093']
+
+# Load rules once and periodically evaluate them
+# rule_files:
+#   - "alerts.yml"
+
+# Scrape configurations
+scrape_configs:
+  # Mirror.ia FastAPI application
+  - job_name: 'fastapi-app'
+    static_configs:
+      - targets: ['app:8000']
+        labels:
+          service: 'api'
+          environment: 'production'
+  
+  # Workers
+  - job_name: 'workers'
+    static_configs:
+      - targets: ['worker:8000', 'worker-2:8000']
+        labels:
+          service: 'worker'
+          environment: 'production'
+  
+  # Prometheus itself
+  - job_name: 'prometheus'
+    static_configs:
+      - targets: ['localhost:9090']
+        labels:
+          service: 'prometheus'
+  
+  # Redis exporter (opcional - se quiser métricas do Redis)
+  # - job_name: 'redis'
+  #   static_configs:
+  #     - targets: ['redis-exporter:9121']
+  
+  # PostgreSQL exporter (opcional - se quiser métricas do DB)
+  # - job_name: 'postgres'
+  #   static_configs:
+  #     - targets: ['postgres-exporter:9187']
