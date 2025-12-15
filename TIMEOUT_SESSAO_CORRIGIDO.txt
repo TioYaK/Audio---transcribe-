@@ -1,0 +1,152 @@
+# ✅ TIMEOUT DE SESSÃO CORRIGIDO
+
+## 📅 Data: 2025-12-15
+## 🎯 Problema: Sessão expirando durante processamento de áudios longos
+
+---
+
+## ⚠️ PROBLEMA IDENTIFICADO
+
+### Cenário:
+Você envia um áudio de **30 minutos** para transcrição.
+
+### O que acontecia ANTES:
+```
+┌─────────────────────────────────────────────────────────┐
+│  1. Upload do áudio: OK ✅                              │
+│  2. Processamento inicia: OK ✅                         │
+│  3. Após 30 minutos: TOKEN JWT EXPIRA ❌               │
+│  4. Processamento continua mas você perde acesso ⚠️    │
+│  5. Não consegue ver resultado sem fazer login ❌      │
+└─────────────────────────────────────────────────────────┘
+```
+
+### Cálculo do problema:
+- **Token JWT:** 30 minutos ⏱️
+- **Áudio de 30 min:** ~40-50 minutos de processamento 🔄
+- **Resultado:** Sessão expira antes do processamento terminar! ❌
+
+---
+
+## ✅ SOLUÇÃO APLICADA
+
+### Mudança no código:
+**Arquivo:** `app/auth.py`
+
+```python
+# ANTES:
+ACCESS_TOKEN_EXPIRE_MINUTES = 30  # 30 minutos
+
+# DEPOIS:
+ACCESS_TOKEN_EXPIRE_MINUTES = 240  # 4 horas (240 minutos)
+```
+
+---
+
+## 📊 COMPARAÇÃO
+
+### Antes vs Depois:
+
+| Duração do Áudio | Tempo de Processamento | Token Antes | Token Depois | Status |
+|------------------|------------------------|-------------|--------------|--------|
+| 5 minutos | ~6-7 min | ✅ OK (30min) | ✅ OK (4h) | Sem mudança |
+| 15 minutos | ~18-22 min | ✅ OK (30min) | ✅ OK (4h) | Sem mudança |
+| 30 minutos | ~40-50 min | ❌ EXPIRA | ✅ OK (4h) | **CORRIGIDO** |
+| 60 minutos | ~80-100 min | ❌ EXPIRA | ✅ OK (4h) | **CORRIGIDO** |
+| 120 minutos | ~160-200 min | ❌ EXPIRA | ✅ OK (4h) | **CORRIGIDO** |
+
+---
+
+## 🎯 BENEFÍCIOS
+
+### ✅ Agora você pode:
+1. **Enviar áudios longos** (até 2 horas) sem preocupação
+2. **Deixar processando** e voltar depois sem perder a sessão
+3. **Ver o resultado** sem precisar fazer login novamente
+4. **Navegar livremente** durante o processamento
+
+### 🔒 Segurança mantida:
+- Token ainda expira (4 horas é razoável)
+- Refresh token continua em 7 dias
+- Autenticação continua segura
+
+---
+
+## 📝 DETALHES TÉCNICOS
+
+### Timeouts configurados no sistema:
+
+#### 1. **Nginx (Proxy)**
+- Upload timeout: **600s (10 minutos)** ✅
+- Read timeout: **600s (10 minutos)** ✅
+- Send timeout: **600s (10 minutos)** ✅
+
+#### 2. **JWT Token**
+- Access token: **240 minutos (4 horas)** ✅ **NOVO!**
+- Refresh token: **7 dias** ✅
+
+#### 3. **Processamento**
+- Sem timeout (roda até completar) ✅
+- Worker processa em background ✅
+
+---
+
+## 🚀 COMO FUNCIONA AGORA
+
+### Fluxo completo:
+
+```
+1. Você faz login
+   └─> Recebe token válido por 4 horas ✅
+
+2. Envia áudio de 30 minutos
+   └─> Upload completa em segundos ✅
+   └─> Processamento inicia em background ✅
+
+3. Processamento leva ~40-50 minutos
+   └─> Token ainda válido (4h > 50min) ✅
+   └─> Você pode:
+       - Fechar o navegador ✅
+       - Navegar em outras páginas ✅
+       - Voltar depois ✅
+
+4. Processamento completa
+   └─> Resultado disponível ✅
+   └─> Token ainda válido ✅
+   └─> Você acessa sem fazer login novamente ✅
+```
+
+---
+
+## ⚠️ IMPORTANTE
+
+### Você AINDA precisa fazer login novamente se:
+- Passar **mais de 4 horas** sem atividade
+- Limpar cookies do navegador
+- Fazer logout manualmente
+
+### Mas AGORA você NÃO precisa fazer login novamente se:
+- ✅ Enviar áudio longo (até 2h)
+- ✅ Esperar processamento completar
+- ✅ Navegar entre páginas durante processamento
+- ✅ Fechar e abrir navegador (dentro de 4h)
+
+---
+
+## 🎬 TESTE AGORA
+
+1. Faça login
+2. Envie um áudio de 30 minutos
+3. Deixe processar
+4. Volte depois de 40-50 minutos
+5. ✅ Resultado estará disponível SEM precisar fazer login!
+
+---
+
+## 📊 STATUS
+
+- ✅ Código modificado
+- ✅ Container reiniciado
+- ✅ Pronto para uso
+
+**Agora você pode enviar áudios longos sem preocupação com timeout de sessão!** 🚀

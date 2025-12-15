@@ -25,11 +25,15 @@ FROM python:3.11-slim AS production
 # Labels for image metadata
 LABEL maintainer="Careca.ai"
 LABEL description="Audio Transcription Service with Whisper AI"
-LABEL version="2.0"
+LABEL version="3.0"
 
-# Security: Create non-root user
-RUN groupadd --gid 1000 appgroup \
-    && useradd --uid 1000 --gid appgroup --shell /bin/bash --create-home appuser
+# Build arguments for dynamic user/group IDs
+ARG USER_ID=1000
+ARG GROUP_ID=1000
+
+# Security: Create non-root user with dynamic IDs
+RUN groupadd --gid ${GROUP_ID} appgroup \
+    && useradd --uid ${USER_ID} --gid appgroup --shell /bin/bash --create-home appuser
 
 WORKDIR /app
 

@@ -7,8 +7,10 @@ from app.database import SessionLocal
 from app.core.config import logger
 from app.core.queue import task_queue
 from app.core.services import whisper_service
-from app.core.services import spell_checker
-from app.services.noise_reduction import reduce_noise
+# PERFORMANCE: Spell checking disabled for speed
+# from app.core.services import spell_checker
+# PERFORMANCE: Noise reduction disabled for speed
+# from app.services.noise_reduction import reduce_noise
 
 # Import metrics
 from app.core.metrics import (
@@ -44,10 +46,10 @@ def process_transcription(task_id: str, file_path: str, options: dict = {}):
         
         start_ts = perf_counter()
         
-        # Apply noise reduction before transcription
-        logger.info(f"Applying noise reduction to {file_path}")
-        cleaned_audio_path = reduce_noise(file_path)
-        logger.info(f"Using audio file: {cleaned_audio_path}")
+        # PERFORMANCE: Noise reduction disabled for speed
+        # Use original file directly
+        cleaned_audio_path = file_path
+        logger.info(f"Using audio file (no noise reduction): {cleaned_audio_path}")
         
         def update_prog(pct):
             task_store.update_progress(task_id, pct)
@@ -73,15 +75,9 @@ def process_transcription(task_id: str, file_path: str, options: dict = {}):
         # Get original text
         original_text = result.get("text", "")
         
-        # Apply spell correction
-        corrected_text = None
-        try:
-            logger.info(f"Applying spell correction for task {task_id}...")
-            corrected_text = spell_checker.correct_text(original_text)
-            logger.info(f"Spell correction completed for task {task_id}")
-        except Exception as e:
-            logger.warning(f"Spell correction failed for task {task_id}: {e}")
-            corrected_text = original_text  # Fallback to original
+        # PERFORMANCE: Spell correction disabled for speed
+        # Whisper already produces high-quality transcriptions
+        logger.info(f"Spell correction: DISABLED (performance optimization)")
         
         # Save Result
         task_store.save_result(
@@ -93,14 +89,6 @@ def process_transcription(task_id: str, file_path: str, options: dict = {}):
             summary=result.get("summary"),
             topics=result.get("topics")
         )
-        
-        # Save corrected text separately
-        if corrected_text and corrected_text != original_text:
-            task = task_store.get_task(task_id)
-            if task:
-                task.result_text_corrected = corrected_text
-                background_db.commit()
-                logger.info(f"Saved corrected text for task {task_id}")
         
         logger.info(f"Task {task_id} completed successfully.")
         

@@ -1,0 +1,43 @@
+# ============================================
+# GPU Override Configuration
+# ============================================
+# Use this file to enable GPU support for the worker
+#
+# Usage:
+#   docker-compose -f docker-compose.yml -f docker-compose.gpu.yml up -d worker
+#
+# This configuration:
+# 1. Enables NVIDIA GPU support
+# 2. Temporarily allows internet access for model download
+# 3. Sets GPU-optimized environment variables
+# ============================================
+
+services:
+  worker:
+    deploy:
+      resources:
+        limits:
+          cpus: '4.0'
+          memory: 4G
+        reservations:
+          devices:
+            - driver: nvidia
+              count: 1
+              capabilities: [ gpu ]
+
+    environment:
+      # GPU Configuration
+      - DEVICE=cuda
+      - COMPUTE_TYPE=float16
+      - WHISPER_MODEL=medium
+
+      # NVIDIA Environment
+      - NVIDIA_VISIBLE_DEVICES=all
+      - NVIDIA_DRIVER_CAPABILITIES=compute,utility
+
+    # Temporarily connect to frontend network for internet access
+    # This allows downloading the Whisper model from HuggingFace
+    networks:
+      - backend
+      - database
+      - frontend # Added for model download

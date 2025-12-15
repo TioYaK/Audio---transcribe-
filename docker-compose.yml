@@ -1,273 +1,506 @@
+# ============================================
+# Docker Compose - Production Ready
+# Audio Transcription Service
+# ============================================
+# Version: 3.0 - Security Hardened
+# Last Updated: 2025-12-14
+
 services:
+  # ==========================================
+  # NGINX - Reverse Proxy with HTTPS
+  # ==========================================
   web:
     image: nginx:alpine
     container_name: careca-nginx
+    restart: unless-stopped
     ports:
-      - "8000:80"
+      - "8000:80" # HTTP only (internal use)
     volumes:
       - ./nginx.conf:/etc/nginx/nginx.conf:ro
     depends_on:
-      - app
+      app:
+        condition: service_healthy
     deploy:
       resources:
         limits:
           cpus: '0.5'
           memory: 128M
     networks:
-      - careca-network
+      - frontend
+      - backend
+    security_opt:
+      - no-new-privileges:true
+    read_only: true
+    tmpfs:
+      - /var/cache/nginx
+      - /var/run
+      - /var/log/nginx
+    healthcheck:
+      test: [ "CMD-SHELL", "wget --no-verbose --tries=1 --spider http://localhost:8080/health || exit 1" ]
+      interval: 15s
+      timeout: 3s
+      retries: 3
+      start_period: 10s
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+        compress: "true"
 
+  # ==========================================
+  # PostgreSQL - Database
+  # ==========================================
   db:
     image: postgres:15-alpine
     container_name: careca-db
     restart: always
+    user: postgres
     environment:
       - POSTGRES_USER=${DB_USER:-careca}
-      - POSTGRES_PASSWORD=${DB_PASSWORD:?DB_PASSWORD_required}
       - POSTGRES_DB=${DB_NAME:-carecadb}
+      - POSTGRES_PASSWORD_FILE=/run/secrets/db_password
+    secrets:
+      - db_password
     volumes:
       - postgres_data:/var/lib/postgresql/data
+      - ./scripts/init-db.sh:/docker-entrypoint-initdb.d/init-db.sh:ro
+    command:
+      - "postgres"
+      - "-c"
+      - "shared_buffers=256MB"
+      - "-c"
+      - "effective_cache_size=1GB"
+      - "-c"
+      - "maintenance_work_mem=64MB"
+      - "-c"
+      - "checkpoint_completion_target=0.9"
+      - "-c"
+      - "wal_buffers=16MB"
+      - "-c"
+      - "default_statistics_target=100"
+      - "-c"
+      - "random_page_cost=1.1"
+      - "-c"
+      - "effective_io_concurrency=200"
+      - "-c"
+      - "work_mem=4MB"
+      - "-c"
+      - "min_wal_size=1GB"
+      - "-c"
+      - "max_wal_size=4GB"
+      - "-c"
+      - "max_connections=100"
+      - "-c"
+      - "log_statement=mod"
+      - "-c"
+      - "log_duration=on"
     deploy:
       resources:
         limits:
           cpus: '1.0'
           memory: 512M
     networks:
-      - careca-network
+      - database
+    security_opt:
+      - no-new-privileges:true
+    healthcheck:
+      test: [ "CMD-SHELL", "pg_isready -U ${DB_USER:-careca} -d ${DB_NAME:-carecadb}" ]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "50m"
+        max-file: "5"
+        compress: "true"
 
+  # ==========================================
+  # Redis - Cache & Queue
+  # ==========================================
   redis:
     image: redis:alpine
     container_name: careca-redis
     restart: always
-    command: redis-server --maxmemory 256mb --maxmemory-policy allkeys-lru
+    user: redis
+    secrets:
+      - redis_password
+    volumes:
+      - redis_data:/data
+      - ./redis/redis.conf:/usr/local/etc/redis/redis.conf:ro
+    command: sh -c "redis-server /usr/local/etc/redis/redis.conf --requirepass $$(cat /run/secrets/redis_password)"
     deploy:
       resources:
         limits:
           cpus: '0.5'
           memory: 256M
     networks:
-      - careca-network
+      - backend
+    security_opt:
+      - no-new-privileges:true
+    healthcheck:
+      test: [ "CMD-SHELL", "redis-cli -a $$(cat /run/secrets/redis_password) ping | grep PONG" ]
+      interval: 10s
+      timeout: 3s
+      retries: 3
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+        compress: "true"
 
+  # ==========================================
+  # FastAPI Application
+  # ==========================================
   app:
     build:
       context: .
       dockerfile: Dockerfile
+      args:
+        - BUILD_DATE=${BUILD_DATE:-unknown}
+        - VCS_REF=${VCS_REF:-unknown}
+        - USER_ID=${HOST_USER_ID:-1000}
+        - GROUP_ID=${HOST_GROUP_ID:-1000}
+    image: careca-app:latest
     container_name: careca-app
     restart: unless-stopped
-    command: uvicorn app.main:app --host 0.0.0.0 --port 8000 --workers 1
+    command: >
+      gunicorn app.main:app  --workers 2 --worker-class uvicorn.workers.UvicornWorker  --bind 0.0.0.0:8000  --timeout 300  --graceful-timeout 30  --max-requests 1000 --max-requests-jitter 50 --access-logfile -  --error-logfile - --log-level info --preload
+    secrets:
+      - db_password
+      - redis_password
+      - secret_key
+      - admin_password
     env_file:
       - .env
     volumes:
-      - .:/app
+      # Whisper models cache (read-write needed for model downloads)
       - whisper-models:/home/appuser/.cache/huggingface
       - uploads:/app/uploads
       - database:/app/data
     environment:
       - WHISPER_MODEL=${WHISPER_MODEL:-medium}
-      - DEVICE=${DEVICE:-cuda}
-      - COMPUTE_TYPE=${COMPUTE_TYPE:-int8_float16}
+      - DEVICE=cpu # App doesn't need GPU
+      - COMPUTE_TYPE=${COMPUTE_TYPE:-int8}
       - MAX_FILE_SIZE_MB=${MAX_FILE_SIZE_MB:-100}
       - ALLOWED_EXTENSIONS=${ALLOWED_EXTENSIONS:-mp3,wav,m4a,ogg,webm,flac}
       - DATABASE_PATH=${DATABASE_PATH:-/app/data/transcriptions.db}
-      - DATABASE_URL=postgresql://${DB_USER}:${DB_PASSWORD}@db:5432/${DB_NAME:-carecadb}
-      - REDIS_URL=redis://redis:6379/0
+      - DB_USER=${DB_USER:-careca}
+      - DB_NAME=${DB_NAME:-carecadb}
+      - DB_HOST=db
+      - DB_PORT=5432
+      - REDIS_HOST=redis
+      - REDIS_PORT=6379
+      - REDIS_DB=0
       - CLEANUP_AFTER_HOURS=${CLEANUP_AFTER_HOURS:-24}
-      - SECRET_KEY=${SECRET_KEY:?SECRET_KEY_required}
-      - ALLOWED_ORIGINS=${ALLOWED_ORIGINS:-http://localhost:8000}
-      - ADMIN_PASSWORD=${ADMIN_PASSWORD:?ADMIN_PASSWORD_required}
+      - ALLOWED_ORIGINS=${ALLOWED_ORIGINS:-https://localhost,https://192.168.15.3}
     depends_on:
-      - db
-      - redis
+      db:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
     deploy:
       resources:
         limits:
           cpus: '2.0'
-          memory: 2G
-        reservations:
-          devices:
-            - driver: nvidia
-              count: 1
-              capabilities: [ gpu ]
+          memory: 3G
     healthcheck:
-      test: [ "CMD", "curl", "-f", "http://localhost:8000/health" ]
-      interval: 60s
+      test: [ "CMD-SHELL", "python -c 'import urllib.request; urllib.request.urlopen(\"http://localhost:8000/health/live\").read()'" ]
+      interval: 30s
       timeout: 10s
       retries: 3
-      start_period: 60s
+      start_period: 40s
     logging:
       driver: "json-file"
       options:
-        max-size: "5m"
-        max-file: "2"
+        max-size: "50m"
+        max-file: "5"
+        compress: "true"
     security_opt:
       - no-new-privileges:true
     networks:
-      - careca-network
+      - frontend
+      - backend
+      - database
 
+  # ==========================================
+  # RQ Worker - Transcription Processing
+  # ==========================================
   worker:
     build:
       context: .
       dockerfile: Dockerfile
+      args:
+        - USER_ID=${HOST_USER_ID:-1000}
+        - GROUP_ID=${HOST_GROUP_ID:-1000}
+    image: careca-app:latest
     container_name: careca-worker
     restart: unless-stopped
-    command: rq worker transcription_tasks --url redis://redis:6379/0
+    command: python -m app.workers
+    secrets:
+      - db_password
+      - redis_password
+      - secret_key
+      - admin_password
     env_file:
       - .env
     volumes:
-      - .:/app
+      # REMOVED bind mount for security
       - whisper-models:/home/appuser/.cache/huggingface
       - uploads:/app/uploads
       - database:/app/data
     environment:
-      - DATABASE_URL=postgresql://${DB_USER}:${DB_PASSWORD}@db:5432/${DB_NAME:-carecadb}
-      - REDIS_URL=redis://redis:6379/0
-      - DEVICE=${DEVICE:-cuda}
+      - DB_USER=${DB_USER:-careca}
+      - DB_NAME=${DB_NAME:-carecadb}
+      - DB_HOST=db
+      - DB_PORT=5432
+      - REDIS_HOST=redis
+      - REDIS_PORT=6379
+      - REDIS_DB=0
+      - DEVICE=${DEVICE:-cpu} # CPU by default, override with docker-compose.gpu.yml
       - WHISPER_MODEL=${WHISPER_MODEL:-medium}
+      - COMPUTE_TYPE=${COMPUTE_TYPE:-int8}
+      - WORKER_MAX_MEMORY_MB=3500
+      - WORKER_MAX_JOBS=100
     depends_on:
-      - db
-      - redis
+      db:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
     healthcheck:
-      test: [ "CMD", "ls", "/app" ]
+      test: [ "CMD-SHELL", "python -c 'import sys; from app.workers.health import check_worker_health; from redis import Redis; from app.core.secrets import read_secret; r = Redis(host=\"redis\", port=6379, password=read_secret(\"redis_password\"), decode_responses=True); sys.exit(0 if check_worker_health(r) else 1)'" ]
       interval: 60s
       timeout: 10s
       retries: 3
+      start_period: 30s
     deploy:
       resources:
         limits:
           cpus: '4.0'
           memory: 4G
-        reservations:
-          devices:
-            - driver: nvidia
-              count: 1
-              capabilities: [ gpu ]
+        # GPU removed - use docker-compose.gpu.yml for GPU support
     logging:
       driver: "json-file"
       options:
-        max-size: "5m"
-        max-file: "2"
+        max-size: "50m"
+        max-file: "5"
+        compress: "true"
     networks:
-      - careca-network
+      - backend
+      - database
+    security_opt:
+      - no-new-privileges:true
 
-  # worker-2: REMOVIDO PARA OTIMIZAÇÃO DE PERFORMANCE
-  # Descomente se precisar de processamento paralelo
-  # worker-2:
-  #   build:
-  #     context: .
-  #     dockerfile: Dockerfile
-  #   container_name: careca-worker-2
-  #   restart: unless-stopped
-  #   command: rq worker transcription_tasks --url redis://redis:6379/0
-  #   env_file:
-  #     - .env
-  #   volumes:
-  #     - .:/app
-  #     - whisper-models:/home/appuser/.cache/huggingface
-  #     - uploads:/app/uploads
-  #     - database:/app/data
-  #   environment:
-  #     - DATABASE_URL=postgresql://${DB_USER}:${DB_PASSWORD}@db:5432/${DB_NAME:-carecadb}
-  #     - REDIS_URL=redis://redis:6379/0
-  #     - DEVICE=${DEVICE:-cuda}
-  #   depends_on:
-  #     - db
-  #     - redis
-  #   deploy:
-  #     resources:
-  #       limits:
-  #         cpus: '4.0'
-  #         memory: 4G
-  #       reservations:
-  #         devices:
-  #           - driver: nvidia
-  #             count: 1
-  #             capabilities: [gpu]
-  #   networks:
-  #     - careca-network
-
+  # ==========================================
+  # Database Migration
+  # ==========================================
   migration:
     build:
       context: .
       dockerfile: Dockerfile
+    image: careca-app:latest
     container_name: careca-migration
-    command: alembic upgrade head
+    user: "1000:1000"
+    command: >
+      sh -c "echo 'Running database migrations...'; alembic upgrade head && echo 'Migrations completed successfully'"
     env_file:
       - .env
     environment:
       - DATABASE_URL=postgresql://${DB_USER}:${DB_PASSWORD}@db:5432/${DB_NAME:-carecadb}
     depends_on:
-      - db
+      db:
+        condition: service_healthy
     networks:
-      - careca-network
+      - database
+    restart: "no" # One-shot container, should not restart
+    deploy:
+      resources:
+        limits:
+          cpus: '0.5'
+          memory: 256M
 
+  # ==========================================
+  # Database Backup
+  # ==========================================
   db-backup:
     image: prodrigestivill/postgres-backup-local
     container_name: careca-db-backup
     restart: always
+    secrets:
+      - db_password
     environment:
       - POSTGRES_HOST=db
       - POSTGRES_DB=${DB_NAME:-carecadb}
       - POSTGRES_USER=${DB_USER:-careca}
-      - POSTGRES_PASSWORD=${DB_PASSWORD:?DB_PASSWORD_required}
+      - POSTGRES_PASSWORD_FILE=/run/secrets/db_password
       - SCHEDULE=@daily
       - BACKUP_KEEP_DAYS=7
+      - POSTGRES_EXTRA_OPTS=--clean --if-exists
+      - BACKUP_SUFFIX=.sql.gz
     volumes:
       - ./backups:/backups
     depends_on:
-      - db
+      db:
+        condition: service_healthy
     deploy:
       resources:
         limits:
           cpus: '0.25'
           memory: 64M
     networks:
-      - careca-network
-  # PROMETHEUS E GRAFANA: COMENTADOS PARA ECONOMIA DE RECURSOS
-  # Descomente quando precisar monitorar métricas
-  # prometheus:
-  #   image: prom/prometheus:latest
-  #   container_name: careca-prometheus
-  #   restart: unless-stopped
-  #   ports:
-  #     - "9090:9090"
-  #   volumes:
-  #     - ./prometheus.yml:/etc/prometheus/prometheus.yml:ro
-  #     - prometheus-data:/prometheus
-  #   command:
-  #     - '--config.file=/etc/prometheus/prometheus.yml'
-  #     - '--storage.tsdb.path=/prometheus'
-  #     - '--storage.tsdb.retention.time=15d'
-  #   deploy:
-  #     resources:
-  #       limits:
-  #         cpus: '0.5'
-  #         memory: 512M
-  #   networks:
-  #     - careca-network
+      - database
+    security_opt:
+      - no-new-privileges:true
 
-  # grafana:
-  #   image: grafana/grafana:latest
-  #   container_name: careca-grafana
-  #   restart: unless-stopped
-  #   ports:
-  #     - "3000:3000"
-  #   environment:
-  #     - GF_SECURITY_ADMIN_USER=admin
-  #     - GF_SECURITY_ADMIN_PASSWORD=admin
-  #     - GF_USERS_ALLOW_SIGN_UP=false
-  #   volumes:
-  #     - grafana-data:/var/lib/grafana
-  #     - ./grafana/dashboards:/etc/grafana/provisioning/dashboards:ro
-  #     - ./grafana/datasources:/etc/grafana/provisioning/datasources:ro
-  #   depends_on:
-  #     - prometheus
-  #   deploy:
-  #     resources:
-  #       limits:
-  #         cpus: '0.5'
-  #         memory: 256M
-  #   networks:
-  #     - careca-network
+  # ==========================================
+  # Volume Backup (On-demand)
+  # ==========================================
+  volume-backup:
+    image: alpine:latest
+    container_name: careca-volume-backup
+    profiles:
+      - backup
+    command: >
+      sh -c " echo 'Starting volume backup...'; tar -czf /backup/whisper-models-$(date +%Y%m%d-%H%M%S).tar.gz -C /data/whisper-models . && tar -czf /backup/uploads-$(date +%Y%m%d-%H%M%S).tar.gz -C /data/uploads . && echo 'Cleaning old backups (>7 days)...'; find /backup -name '*.tar.gz' -mtime +7 -delete && echo 'Backup complete!' "
+    volumes:
+      - whisper-models:/data/whisper-models:ro
+      - uploads:/data/uploads:ro
+      - ./volume-backups:/backup
+    deploy:
+      resources:
+        limits:
+          cpus: '0.5'
+          memory: 256M
 
+  # ==========================================
+  # Backup Validator (On-demand)
+  # ==========================================
+  backup-validator:
+    image: postgres:15-alpine
+    container_name: careca-backup-validator
+    profiles:
+      - validation
+    secrets:
+      - db_password
+    command: >
+      sh -c " echo 'Validating latest backup...'; LATEST_BACKUP=$(ls -t /backups/*.sql.gz | head -1); echo 'Testing: $LATEST_BACKUP'; PGPASSWORD=$(cat /run/secrets/db_password) gunzip -c $LATEST_BACKUP | psql -U postgres -d test_restore; echo 'Validation complete!' "
+    volumes:
+      - ./backups:/backups:ro
+    networks:
+      - database
+
+  # ==========================================
+  # Prometheus - Metrics (Optional)
+  # ==========================================
+  prometheus:
+    image: prom/prometheus:latest
+    container_name: careca-prometheus
+    restart: unless-stopped
+    profiles:
+      - monitoring
+    ports:
+      - "9090:9090"
+    volumes:
+      - ./prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - ./prometheus/web-config.yml:/etc/prometheus/web-config.yml:ro
+      - prometheus-data:/prometheus
+    command:
+      - '--config.file=/etc/prometheus/prometheus.yml'
+      - '--web.config.file=/etc/prometheus/web-config.yml'
+      - '--storage.tsdb.path=/prometheus'
+      - '--storage.tsdb.retention.time=15d'
+      - '--web.console.libraries=/usr/share/prometheus/console_libraries'
+      - '--web.console.templates=/usr/share/prometheus/consoles'
+    deploy:
+      resources:
+        limits:
+          cpus: '0.5'
+          memory: 512M
+    networks:
+      - backend
+    security_opt:
+      - no-new-privileges:true
+
+  # ==========================================
+  # Grafana - Visualization (Optional)
+  # ==========================================
+  grafana:
+    image: grafana/grafana:latest
+    container_name: careca-grafana
+    restart: unless-stopped
+    profiles:
+      - monitoring
+    ports:
+      - "3000:3000"
+    secrets:
+      - grafana_admin_password
+    environment:
+      - GF_SECURITY_ADMIN_USER=admin
+      - GF_SECURITY_ADMIN_PASSWORD__FILE=/run/secrets/grafana_admin_password
+      - GF_USERS_ALLOW_SIGN_UP=false
+      - GF_AUTH_ANONYMOUS_ENABLED=false
+      - GF_AUTH_DISABLE_LOGIN_FORM=false
+      - GF_SERVER_ROOT_URL=http://localhost:3000
+      - GF_SECURITY_COOKIE_SECURE=false
+      - GF_SECURITY_COOKIE_SAMESITE=strict
+    volumes:
+      - grafana-data:/var/lib/grafana
+      - ./grafana/dashboards:/etc/grafana/provisioning/dashboards:ro
+      - ./grafana/datasources:/etc/grafana/provisioning/datasources:ro
+    depends_on:
+      - prometheus
+    deploy:
+      resources:
+        limits:
+          cpus: '0.5'
+          memory: 256M
+    networks:
+      - backend
+    security_opt:
+      - no-new-privileges:true
+
+  # ==========================================
+  # Nginx Exporter - Prometheus Metrics
+  # ==========================================
+  nginx-exporter:
+    image: nginx/nginx-prometheus-exporter:latest
+    container_name: careca-nginx-exporter
+    restart: unless-stopped
+    profiles:
+      - monitoring
+    command:
+      - '-nginx.scrape-uri=http://web:8080/nginx_status'
+    ports:
+      - "9113:9113"
+    depends_on:
+      - web
+    deploy:
+      resources:
+        limits:
+          cpus: '0.1'
+          memory: 32M
+    networks:
+      - backend
+    security_opt:
+      - no-new-privileges:true
+    healthcheck:
+      test: [ "CMD-SHELL", "wget --no-verbose --tries=1 --spider http://localhost:9113/metrics || exit 1" ]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+        compress: "true"
+
+# ==========================================
+# VOLUMES
+# ==========================================
 volumes:
   whisper-models:
     name: careca-whisper-models
@@ -277,11 +510,44 @@ volumes:
     name: careca-database
   postgres_data:
     name: careca-postgres-data
+  redis_data:
+    name: careca-redis-data
   prometheus-data:
     name: careca-prometheus-data
   grafana-data:
     name: careca-grafana-data
 
+# ==========================================
+# NETWORKS - Segmented for Security
+# ==========================================
 networks:
-  careca-network:
-    name: careca-network
+  frontend:
+    name: careca-frontend
+    driver: bridge
+  backend:
+    name: careca-backend
+    driver: bridge
+    internal: true # No external access
+  database:
+    name: careca-database
+    driver: bridge
+    internal: true # No external access
+
+# ==========================================
+# SECRETS - Secure Credential Management
+# ==========================================
+secrets:
+  db_password:
+    file: ./secrets/db_password.txt
+  redis_password:
+    file: ./secrets/redis_password.txt
+  secret_key:
+    file: ./secrets/secret_key.txt
+  admin_password:
+    file: ./secrets/admin_password.txt
+  grafana_admin_password:
+    file: ./secrets/grafana_admin_password.txt
+  prometheus_password:
+    file: ./secrets/prometheus_password.txt
+  backup_encryption_key:
+    file: ./secrets/backup_encryption_key.txt

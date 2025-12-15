@@ -20,27 +20,45 @@ class CacheService:
     Supports transcriptions, analysis, and generic caching with compression.
     """
     
-    def __init__(self, redis_host: str = "redis", redis_port: int = 6379, redis_db: int = 1):
+    def __init__(self, redis_url: str = None, redis_db: int = 1):
         """
         Initialize cache service.
         
         Args:
-            redis_host: Redis server host
-            redis_port: Redis server port
+            redis_url: Redis connection URL (if None, uses REDIS_URL env var)
             redis_db: Redis database number (0 is used by RQ, we use 1)
         """
+        import os
+        
         try:
-            self.redis = Redis(
-                host=redis_host,
-                port=redis_port,
-                db=redis_db,
+            # Get Redis URL from env if not provided
+            if not redis_url:
+                try:
+                    from app.core.secrets import get_redis_url
+                    redis_url = get_redis_url()
+                except Exception as e:
+                    logger.warning(f"Failed to load Redis URL from secrets: {e}")
+                    redis_url = os.getenv('REDIS_URL', 'redis://redis:6379/0')
+            
+            # Parse URL and change database
+            from urllib.parse import urlparse, urlunparse
+            parsed = urlparse(redis_url)
+            # Replace database in path
+            new_path = f'/{redis_db}'
+            redis_url_with_db = urlunparse((
+                parsed.scheme, parsed.netloc, new_path,
+                parsed.params, parsed.query, parsed.fragment
+            ))
+            
+            self.redis = Redis.from_url(
+                redis_url_with_db,
                 decode_responses=False,  # We handle binary data
                 socket_connect_timeout=5,
                 socket_timeout=5
             )
             # Test connection
             self.redis.ping()
-            logger.info(f"✓ Cache service connected to Redis at {redis_host}:{redis_port} (db={redis_db})")
+            logger.info(f"✓ Cache service connected to Redis (db={redis_db})")
         except RedisError as e:
             logger.error(f"Failed to connect to Redis: {e}")
             self.redis = None

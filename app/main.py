@@ -145,4 +145,46 @@ async def login_page(request: Request):
 
 @app.get("/health")
 async def health_check():
+    """Legacy health check endpoint"""
     return {"status": "healthy", "gpu": settings.DEVICE == "cuda"}
+
+@app.get("/health/live")
+async def liveness_check():
+    """
+    Liveness probe - checks if the application is running.
+    Returns 200 if the process is alive.
+    """
+    return {"status": "alive", "timestamp": time.time()}
+
+@app.get("/health/ready")
+async def readiness_check(db: Session = Depends(get_db)):
+    """
+    Readiness probe - checks if the application is ready to serve traffic.
+    Verifies database and Redis connections.
+    """
+    try:
+        # Check database connection
+        db.execute("SELECT 1")
+        
+        # Check Redis connection
+        from app.services.cache_service import cache_service
+        if not cache_service.redis_client.ping():
+            return JSONResponse(
+                status_code=503,
+                content={"status": "not_ready", "reason": "Redis connection failed"}
+            )
+        
+        return {
+            "status": "ready",
+            "database": "connected",
+            "redis": "connected",
+            "gpu": settings.DEVICE == "cuda",
+            "timestamp": time.time()
+        }
+    except Exception as e:
+        logger.error(f"Readiness check failed: {e}")
+        return JSONResponse(
+            status_code=503,
+            content={"status": "not_ready", "reason": str(e)}
+        )
+

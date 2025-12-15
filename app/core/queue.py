@@ -9,7 +9,15 @@ logger = logging.getLogger(__name__)
 
 class TaskQueue:
     def __init__(self):
-        self.redis_url = os.getenv("REDIS_URL", "redis://localhost:6379/0")
+        # Use secrets module for Redis URL
+        try:
+            from app.core.secrets import get_redis_url
+            self.redis_url = get_redis_url()
+        except Exception as e:
+            logger.warning(f"Failed to load Redis URL from secrets: {e}")
+            # Fallback to environment
+            self.redis_url = os.getenv("REDIS_URL", "redis://redis:6379/0")
+        
         self.queue = None
         self._init_queue()
 

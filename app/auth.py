@@ -11,8 +11,10 @@ from app.core.config import settings
 # Config
 SECRET_KEY = settings.SECRET_KEY
 ALGORITHM = "HS256"
-ACCESS_TOKEN_EXPIRE_MINUTES = 30  # Shorter for security
-REFRESH_TOKEN_EXPIRE_DAYS = 7    # Longer refresh token
+# Increased from 30 to 240 minutes (4 hours) to handle long audio processing
+# A 30-minute audio can take 40-50 minutes to process
+ACCESS_TOKEN_EXPIRE_MINUTES = 240  # 4 hours - prevents session timeout during long processing
+REFRESH_TOKEN_EXPIRE_DAYS = 7      # Longer refresh token
 
 pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="token")

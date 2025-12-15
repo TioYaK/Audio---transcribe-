@@ -38,7 +38,22 @@ backups/
 # Documentation (keep only README.md)
 *.md
 !README.md
+!DEPLOYMENT.md
+!MIGRATION.md
+!IMPLEMENTATION_SUMMARY.md
+!NGINX-AUDIT.md
+!NGINX-IMPLEMENTATION.md
+!IMPLEMENTATION-STATUS.md
 
-# Scripts
-*.ps1
+# Secrets and SSL (NEVER commit!)
+secrets/
+ssl/private/
+ssl/*.key
+ssl/*.pem
+volume-backups/
+
+# Scripts (allow infrastructure scripts)
+# *.ps1  # REMOVED - allowing scripts
 apply_improvements.py
+!scripts/*.ps1
+!scripts/*.sh
