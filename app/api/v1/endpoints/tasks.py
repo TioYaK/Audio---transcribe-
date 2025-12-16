@@ -105,19 +105,12 @@ async def upload_audio(
                 break
             counter += 1
 
-    # Save file (Disk uses UUID to never collide)
+    # Generate unique task ID and filepath
     task_id = str(uuid.uuid4())
-    unique_filename = f"{task_id}_{safe_filename}" # Still use safe_filename for disk
-
+    unique_filename = f"{task_id}_{safe_filename}"
     file_path = os.path.join(settings.UPLOAD_DIR, unique_filename)
     
-    try:
-        with open(file_path, "wb") as buffer:
-            shutil.copyfileobj(file.file, buffer)
-    except Exception as e:
-         raise HTTPException(status_code=500, detail=f"Falha ao salvar arquivo: {str(e)}")
-
-    # Create task
+    # Create task FIRST (DB record)
     options = {"timestamp": timestamp, "diarization": diarization}
     task = task_store.create_task(
         filename=final_display_name,
@@ -126,8 +119,33 @@ async def upload_audio(
         options=options
     )
     
-    # Enqueue
-    await task_queue.put((task.task_id, file_path, options))
+    # Save file AND enqueue AFTER successful save (fixes race condition)
+    async def save_and_enqueue():
+        """Save uploaded file and enqueue ONLY after successful save"""
+        try:
+            # 1. Read file content
+            content = await file.read()
+            
+            # 2. Write to disk (runs in thread pool to not block event loop)
+            import aiofiles
+            async with aiofiles.open(file_path, 'wb') as f:
+                await f.write(content)
+            
+            logger.info(f"✅ File saved: {unique_filename}")
+            
+            # 3. ONLY NOW enqueue for processing (guarantees file exists)
+            await task_queue.put((task.task_id, file_path, options))
+            logger.info(f"✅ Task enqueued: {task.task_id}")
+            
+        except Exception as e:
+            logger.error(f"❌ Failed to save/enqueue {unique_filename}: {e}")
+            # Mark task as failed if file save fails
+            task.status = "failed"
+            task.error_message = f"Falha ao salvar arquivo: {str(e)}"
+            db.commit()
+    
+    # Schedule background save + enqueue (non-blocking)
+    background_tasks.add_task(save_and_enqueue)
     
     return {
         "task_id": task.task_id,

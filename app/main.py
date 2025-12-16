@@ -79,14 +79,20 @@ async def startup_event():
                 # Security: Do NOT log the generated password
                 logger.warning("ADMIN_PASSWORD not set. A temporary password was generated - set ADMIN_PASSWORD in .env")
             
-            db.add(models.User(
-                username="admin", 
-                hashed_password=auth.get_password_hash(pwd),
-                is_active=True, 
-                is_admin=True
-            ))
-            db.commit()
-            logger.info("Admin user verified/created.")
+            try:
+                db.add(models.User(
+                    username="admin", 
+                    hashed_password=auth.get_password_hash(pwd),
+                    is_active=True, 
+                    is_admin=True
+                ))
+                db.commit()
+                logger.info("Admin user created successfully.")
+            except Exception as e:
+                db.rollback()
+                logger.warning(f"Admin user creation skipped (may already exist): {e}")
+        else:
+            logger.info("Admin user already exists.")
             
         # 3. TASK RECOVERY (Reliability Fix with Better Error Handling)
         # Re-queue pending tasks if file exists, otherwise mark as failed
@@ -164,11 +170,12 @@ async def readiness_check(db: Session = Depends(get_db)):
     """
     try:
         # Check database connection
-        db.execute("SELECT 1")
+        from sqlalchemy import text
+        db.execute(text("SELECT 1"))
         
         # Check Redis connection
         from app.services.cache_service import cache_service
-        if not cache_service.redis_client.ping():
+        if not cache_service.redis or not cache_service.redis.ping():
             return JSONResponse(
                 status_code=503,
                 content={"status": "not_ready", "reason": "Redis connection failed"}

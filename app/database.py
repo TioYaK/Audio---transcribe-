@@ -3,9 +3,10 @@ from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker, declarative_base
 import os
 
-# Default to SQLite if no URL provided
-DEFAULT_SQLITE = f"sqlite:///{os.getenv('DATABASE_PATH', '/app/data/transcriptions.db')}"
-DATABASE_URL = os.getenv("DATABASE_URL", DEFAULT_SQLITE)
+# Import settings to get DATABASE_URL from Docker secrets
+from app.core.config import settings
+
+DATABASE_URL = settings.DATABASE_URL
 
 connect_args = {}
 pool_kwargs = {}

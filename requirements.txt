@@ -3,6 +3,8 @@ fastapi
 uvicorn[standard]
 gunicorn
 python-multipart
+aiofiles
+
 faster-whisper
 sqlalchemy
 pytest
