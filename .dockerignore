@@ -1,11 +1,59 @@
+# Version control
 .git
+.gitignore
+
+# Python
 .venv
 venv
 __pycache__
 *.pyc
+*.pyo
+*.pyd
+.Python
+
+# Environment
 .env
+.env.*
+!.env.example
+
+# Project data
 uploads/*
 !uploads/.gitkeep
 data/*
 !data/.gitkeep
 whisper_cache/
+backups/
+volume-backups/
+
+# Documentation
+*.md
+!README.md
+!CHANGELOG.md
+
+# IDE
+.vscode
+.idea
+.kiro
+
+# Testing
+.pytest_cache
+.hypothesis
+tests/
+test_*.py
+
+# Monitoring (configs are in docker-compose)
+grafana/data/
+prometheus/data/
+
+# Temporary files
+*.tmp
+*.bak
+*.backup
+*.log
+
+# Secrets
+secrets/
+ssl/private/
+ssl/*.key
+ssl/*.pem
+

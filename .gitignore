@@ -30,20 +30,30 @@ backups/
 
 # Temporary files
 *.backup
+*.backup-*
 *.fixed
 *_fixed.*
 *.tmp
 *.bak
+*.txt
+!requirements.txt
+
+# Migration scripts (one-time use)
+migrate_*.py
 
 # Documentation (keep only README.md)
 *.md
 !README.md
+!CHANGELOG.md
+!CONTRIBUTING.md
 !DEPLOYMENT.md
 !MIGRATION.md
 !IMPLEMENTATION_SUMMARY.md
 !NGINX-AUDIT.md
 !NGINX-IMPLEMENTATION.md
 !IMPLEMENTATION-STATUS.md
+!*_REPORT.md
+!*_GUIDE.md
 
 # Secrets and SSL (NEVER commit!)
 secrets/
