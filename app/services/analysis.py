@@ -71,15 +71,27 @@ class BusinessAnalyzer:
         VALID_PARCELS = ["20", "30", "40", "50", "60", "70", "80", "90", "100", 
                         "110", "120", "130", "140", "150", "160", "170", "180", "190", "200"]
         
-        # Start with default lists
+        # Start with default lists - ECONOMIA PREMIÁVEL (Bradesco Capitalização)
         pos_indicators = [
+            # Termos do produto
+            "economia premiável", "economia programada", "título de capitalização",
+            "bradesco capitalização", "capitalização bradesco",
+            # Duração e carência
             "60 meses", "sessenta meses", "cinco anos",
             "carência", "12 meses", "doze meses",
+            # Sorteios
             "sorteio semanal", "sorteio mensal", "sorteio trimestral", "sorteio anual",
-            "número da sorte", "portal proteção", 
-            "0800", "central de atendimento", "débito na fatura", "reajuste", "ipca",
-            "resgate", "ao final do plano", "continua concorrendo", "título de capitalização",
-            "economia programada"
+            "número da sorte", "concorre a prêmios", "prêmio de até",
+            # Resgate e benefícios
+            "resgate", "ao final do plano", "continua concorrendo",
+            "valor de resgate", "correção monetária", "atualização pelo ipca",
+            # Atendimento e portal
+            "portal proteção", "0800", "central de atendimento",
+            # Pagamento
+            "débito na fatura", "débito automático", "reajuste", "ipca",
+            # Características do produto
+            "não é investimento", "não tem rentabilidade garantida",
+            "produto de capitalização", "regulamentado pela susep"
         ]
 
         neg_indicators = [

@@ -53,8 +53,25 @@ def process_transcription(task_id: str, file_path: str, options: dict = {}):
         cleaned_audio_path = file_path
         logger.info(f"Usando arquivo de áudio (sem redução de ruído): {cleaned_audio_path}")
         
+        # WebSocket: Broadcast de updates em tempo real
+        async def broadcast_progress(pct):
+            try:
+                from app.core.websocket_manager import ws_manager
+                import asyncio
+                asyncio.create_task(ws_manager.send_progress_update(task_id, pct))
+            except Exception as e:
+                logger.debug(f"Falha ao enviar WebSocket update: {e}")
+        
         def update_prog(pct):
             task_store.update_progress(task_id, pct)
+            # Tentar broadcast WebSocket (não bloqueia se falhar)
+            try:
+                import asyncio
+                loop = asyncio.get_event_loop()
+                if loop.is_running():
+                    asyncio.create_task(broadcast_progress(pct))
+            except:
+                pass  # Ignorar se não houver loop async
         
         # Buscar Regras de Análise
         rules = []
@@ -74,14 +91,22 @@ def process_transcription(task_id: str, file_path: str, options: dict = {}):
         # Obter texto original
         original_text = result.get("text", "")
         
-        # PERFORMANCE: Correção ortográfica desativada para velocidade
-        # Whisper já produz transcrições de alta qualidade
-        logger.info(f"Correção ortográfica: DESATIVADA (otimização de performance)")
+        # CORREÇÃO ORTOGRÁFICA: Ativada para todos os áudios
+        corrected_text = original_text
+        try:
+            from app.core.services.spell_checker import correct_text
+            logger.info(f"Aplicando correção ortográfica...")
+            corrected_text = correct_text(original_text)
+            logger.info(f"Correção ortográfica concluída")
+        except Exception as e:
+            logger.warning(f"Falha na correção ortográfica: {e}. Usando texto original.")
+            corrected_text = original_text
         
-        # Salvar Resultado
+        # Salvar Resultado (com texto original E corrigido)
         task_store.save_result(
             task_id=task_id,
             text=original_text,
+            text_corrected=corrected_text,  # Texto com correção ortográfica
             language=result.get("language", "unknown"),
             duration=result.get("duration", 0.0),
             processing_time=processing_time,

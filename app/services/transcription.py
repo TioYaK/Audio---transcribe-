@@ -68,8 +68,8 @@ class TranscriptionService:
             # 3. Transcrever
             segments, info = self._transcribe_audio(optimized_path, progress_callback)
             
-            # 4. Formatar (sem diarização, sem timestamps)
-            full_text = self._format_output(segments, [], False)
+            # 4. Formatar (apenas texto puro, sem diarização ou timestamps)
+            full_text = self._format_output(segments)
             
             # Armazenar info
             info_dict = {
@@ -121,27 +121,27 @@ class TranscriptionService:
     def _transcribe_audio(self, path, cb):
         """Realiza a transcrição do áudio usando Whisper."""
         if self.batched_model:
-            # Modelo em lote requer VAD ou clip_timestamps
-            # Usando VAD com parâmetros menos agressivos
+            # Modelo em lote REQUER VAD - usando parâmetros mínimos para não cortar fala
             segments, info = self.batched_model.transcribe(
                 path, 
-                batch_size=16, 
-                word_timestamps=True,
-                vad_filter=True,
+                batch_size=16,
+                language="pt",  # Força português brasileiro
+                word_timestamps=False,
+                vad_filter=True,  # Necessário para batched model
                 vad_parameters={
-                    "threshold": 0.3,  # Menor = menos agressivo (padrão 0.5)
-                    "min_speech_duration_ms": 100,  # Mínimo mais curto (padrão 250)
-                    "min_silence_duration_ms": 1000,  # Silêncio maior para cortar (padrão 2000)
-                    "speech_pad_ms": 200  # Mais preenchimento ao redor da fala (padrão 400)
+                    "threshold": 0.1,  # Muito sensível - captura falas baixas
+                    "min_speech_duration_ms": 50,  # Mínimo muito curto
+                    "min_silence_duration_ms": 2000,  # Só corta silêncios longos (2s)
+                    "speech_pad_ms": 400  # Padding generoso ao redor da fala
                 }
             )
         else:
             segments, info = self.model.transcribe(
                 path, 
                 beam_size=5, 
-                language="pt", 
-                vad_filter=False,  # Desabilitado: modelo padrão não precisa
-                word_timestamps=True
+                language="pt",  # Força português brasileiro
+                vad_filter=False,  # DESABILITADO - processa todo o áudio
+                word_timestamps=False  # Desabilitado - não precisamos de timestamps
             )
         
         # Coletar para progresso (faster-whisper retorna gerador)
@@ -157,24 +157,12 @@ class TranscriptionService:
         if cb: cb(100)
         return results, info
 
-    def _format_output(self, segments, speakers, use_timestamps):
-        """Formata a saída da transcrição."""
+    def _format_output(self, segments):
+        """Formata a saída da transcrição como texto puro (sem timestamps ou diarização)."""
         lines = []
-        for i, seg in enumerate(segments):
-            parts = []
-            
-            # Timestamp
-            if use_timestamps:
-                m = int(seg.start // 60)
-                s = int(seg.start % 60)
-                parts.append(f"[{m:02d}:{s:02d}]")
-                
-            # Falante
-            if speakers and i < len(speakers):
-                lbl = speakers[i]
-                parts.append(f"[Pessoa {lbl+1}]" if lbl >= 0 else "[?]")
-                
-            parts.append(seg.text.strip())
-            lines.append(" ".join(parts))
-            
+        for seg in segments:
+            text = seg.text.strip()
+            if text:  # Apenas adiciona se não for vazio
+                lines.append(text)
+        
         return "\n".join(lines)

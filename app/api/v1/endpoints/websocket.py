@@ -3,8 +3,55 @@ from fastapi import APIRouter, WebSocket, WebSocketDisconnect
 import asyncio
 import os
 from app.core.config import logger
+from app.core.websocket_manager import ws_manager
 
 router = APIRouter()
+
+@router.websocket("/ws/tasks/{task_id}")
+async def websocket_task_updates(websocket: WebSocket, task_id: str):
+    """
+    WebSocket endpoint para updates em tempo real de uma task específica.
+    Cliente recebe atualizações de status e progresso automaticamente.
+    """
+    await ws_manager.connect(websocket, task_id)
+    logger.info(f"WebSocket conectado para task {task_id}")
+    
+    try:
+        # Enviar mensagem inicial de conexão
+        await ws_manager.send_personal_message({
+            "type": "connected",
+            "task_id": task_id,
+            "message": "Conectado ao servidor de updates"
+        }, websocket)
+        
+        # Manter conexão aberta e aguardar mensagens (heartbeat)
+        while True:
+            try:
+                # Aguardar mensagem do cliente (ping/pong para manter vivo)
+                data = await asyncio.wait_for(websocket.receive_text(), timeout=30.0)
+                
+                # Responder a ping
+                if data == "ping":
+                    await ws_manager.send_personal_message({
+                        "type": "pong"
+                    }, websocket)
+            except asyncio.TimeoutError:
+                # Timeout normal - enviar ping para verificar conexão
+                await ws_manager.send_personal_message({
+                    "type": "ping"
+                }, websocket)
+                
+    except WebSocketDisconnect:
+        logger.info(f"WebSocket desconectado para task {task_id}")
+        ws_manager.disconnect(websocket)
+    except Exception as e:
+        logger.error(f"Erro no WebSocket para task {task_id}: {e}")
+        ws_manager.disconnect(websocket)
+        try:
+            await websocket.close()
+        except:
+            pass
+
 
 @router.websocket("/ws/logs")
 async def websocket_logs(websocket: WebSocket):

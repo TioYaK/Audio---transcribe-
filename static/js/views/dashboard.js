@@ -260,15 +260,31 @@ export class DashboardView {
 
             // Load Audio
             try {
+                console.log(`🎵 Carregando áudio para task: ${id}`);
                 const audioRes = await authFetch(`/api/audio/${id}`);
+                console.log(`📡 Resposta do servidor:`, audioRes.status, audioRes.statusText);
+
                 if (audioRes.ok) {
                     const blob = await audioRes.blob();
+                    console.log(`📦 Blob recebido:`, blob.size, 'bytes', blob.type);
+
                     const audioUrl = window.URL.createObjectURL(blob);
+                    console.log(`🔗 URL criada:`, audioUrl);
+
                     audioContainer.classList.remove('hidden');
-                    if (this.player) this.player.init(audioUrl);
+                    console.log(`👁️ Container visível`);
+
+                    if (this.player) {
+                        console.log(`▶️ Inicializando player com URL...`);
+                        this.player.init(audioUrl);
+                    } else {
+                        console.error(`❌ Player não existe!`);
+                    }
+                } else {
+                    console.error(`❌ Resposta não OK:`, audioRes.status, await audioRes.text());
                 }
             } catch (audioErr) {
-                console.error("Audio Load Error:", audioErr);
+                console.error("❌ Audio Load Error:", audioErr);
             }
 
         } catch (e) {

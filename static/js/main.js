@@ -284,7 +284,9 @@ async function loadHistory(showAll = false) {
         const res = await authFetch(endpoint);
         if (!res.ok) throw new Error('Failed to load history');
 
-        const tasks = await res.json();
+        const data = await res.json();
+        // Handle both old array format and new paginated object format
+        const tasks = Array.isArray(data) ? data : (data.tasks || []);
         window.lastHistoryData = tasks;
 
         if (tasks.length === 0) {

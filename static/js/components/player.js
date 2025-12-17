@@ -15,17 +15,29 @@ export class Player {
     }
 
     init(url) {
-        if (!this.container) return;
+        console.log(`🎵 Player.init() chamado com URL:`, url);
+        console.log(`📍 Container existe:`, !!this.container);
+
+        if (!this.container) {
+            console.error(`❌ Container #waveform não encontrado!`);
+            return;
+        }
 
         // Cleanup
         if (this.wavesurfer) {
-            try { this.wavesurfer.destroy(); } catch (e) { }
+            console.log(`🧹 Limpando WaveSurfer anterior...`);
+            try { this.wavesurfer.destroy(); } catch (e) { console.warn('Erro ao destruir:', e); }
             this.wavesurfer = null;
         }
         this.container.innerHTML = '';
 
         try {
-            if (typeof WaveSurfer === 'undefined') throw new Error("WaveSurfer lib not loaded");
+            if (typeof WaveSurfer === 'undefined') {
+                console.error(`❌ WaveSurfer lib não carregada!`);
+                throw new Error("WaveSurfer lib not loaded");
+            }
+
+            console.log(`✅ WaveSurfer disponível, criando instância...`);
 
             this.wavesurfer = WaveSurfer.create({
                 container: '#waveform',
@@ -40,16 +52,21 @@ export class Player {
                 cursorWidth: 1,
             });
 
+            console.log(`📥 Carregando áudio no WaveSurfer...`);
             this.wavesurfer.load(url);
             this.bindEvents();
 
             this.wavesurfer.on('error', (e) => {
-                console.error("WaveSurfer error:", e);
+                console.error("❌ WaveSurfer error:", e);
                 this.container.innerHTML = '<p style="color:var(--danger)">Erro ao carregar áudio.</p>';
             });
 
+            this.wavesurfer.on('ready', () => {
+                console.log(`✅ WaveSurfer pronto!`);
+            });
+
         } catch (e) {
-            console.error("Init error:", e);
+            console.error("❌ Init error:", e);
             this.container.innerHTML = '<p style="color:var(--text-muted)">Visualização de áudio indisponível.</p>';
         }
     }

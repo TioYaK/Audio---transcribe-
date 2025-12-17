@@ -58,11 +58,12 @@ class TaskStore:
             self.db.refresh(task)
         return task
 
-    def save_result(self, task_id: str, text: str, language: str, duration: float, processing_time: float, summary: str = None, topics: str = None):
+    def save_result(self, task_id: str, text: str, language: str, duration: float, processing_time: float, summary: str = None, topics: str = None, text_corrected: str = None):
         task = self.get_task(task_id)
         if task:
             task.status = "completed"
             task.result_text = text
+            task.result_text_corrected = text_corrected  # Texto com correção ortográfica
             task.language = language
             task.duration = duration
             task.processing_time = processing_time

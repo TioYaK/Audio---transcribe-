@@ -68,11 +68,11 @@ services:
     command:
       - "postgres"
       - "-c"
-      - "shared_buffers=256MB"
+      - "shared_buffers=1GB"
       - "-c"
-      - "effective_cache_size=1GB"
+      - "effective_cache_size=3GB"
       - "-c"
-      - "maintenance_work_mem=64MB"
+      - "maintenance_work_mem=128MB"
       - "-c"
       - "checkpoint_completion_target=0.9"
       - "-c"
@@ -84,13 +84,17 @@ services:
       - "-c"
       - "effective_io_concurrency=200"
       - "-c"
-      - "work_mem=4MB"
+      - "work_mem=8MB"
       - "-c"
       - "min_wal_size=1GB"
       - "-c"
       - "max_wal_size=4GB"
       - "-c"
-      - "max_connections=100"
+      - "max_connections=200"
+      - "-c"
+      - "idle_in_transaction_session_timeout=60000"
+      - "-c"
+      - "statement_timeout=300000"
       - "-c"
       - "log_statement=mod"
       - "-c"
@@ -99,7 +103,7 @@ services:
       resources:
         limits:
           cpus: '1.0'
-          memory: 512M
+          memory: 1G
     networks:
       - database
     security_opt:

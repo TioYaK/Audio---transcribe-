@@ -28,7 +28,7 @@ services:
     environment:
       # GPU Configuration
       - DEVICE=cuda
-      - COMPUTE_TYPE=float16
+      - COMPUTE_TYPE=int8
       - WHISPER_MODEL=medium
 
       # NVIDIA Environment

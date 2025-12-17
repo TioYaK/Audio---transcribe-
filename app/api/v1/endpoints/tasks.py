@@ -263,19 +263,33 @@ async def get_audio_file(task_id: str, db: Session = Depends(get_db), current_us
     )
 
 @router.get("/history")
-async def get_history(all: bool = False, db: Session = Depends(get_db), current_user: models.User = Depends(auth.get_current_user)):
+async def get_history(
+    all: bool = False, 
+    limit: int = 50,  # Paginação: itens por página
+    offset: int = 0,  # Paginação: deslocamento
+    db: Session = Depends(get_db), 
+    current_user: models.User = Depends(auth.get_current_user)
+):
     task_store = crud.TaskStore(db)
     
     if all and current_user.is_admin:
-        return task_store.get_all_tasks_admin()
+        tasks = task_store.get_all_tasks_admin_paginated(offset=offset, limit=limit)
+        total = task_store.count_all_tasks()
+    else:
+        tasks = task_store.get_user_tasks_paginated(
+            owner_id=current_user.id,
+            offset=offset,
+            limit=limit
+        )
+        total = task_store.count_user_completed_tasks(current_user.id)
     
-    tasks = db.query(models.TranscriptionTask).filter(
-        models.TranscriptionTask.owner_id == current_user.id,
-        models.TranscriptionTask.status.in_(["completed", "failed"]),
-        models.TranscriptionTask.is_archived == False
-    ).order_by(models.TranscriptionTask.completed_at.desc()).all()
-    
-    return [task.to_dict() for task in tasks]
+    return {
+        "tasks": tasks,
+        "total": total,
+        "limit": limit,
+        "offset": offset,
+        "has_more": (offset + limit) < total
+    }
 
 @router.post("/rename/{task_id}")
 async def rename_task(task_id: str, payload: dict, db: Session = Depends(get_db), current_user: models.User = Depends(auth.get_current_user)):
