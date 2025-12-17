@@ -1,4 +1,8 @@
 
+"""
+Worker de processamento de transcrições.
+Gerencia a fila de tarefas e coordena o pipeline de transcrição.
+"""
 import asyncio
 from time import perf_counter
 import os
@@ -7,12 +11,8 @@ from app.database import SessionLocal
 from app.core.config import logger
 from app.core.queue import task_queue
 from app.core.services import whisper_service
-# PERFORMANCE: Spell checking disabled for speed
-# from app.core.services import spell_checker
-# PERFORMANCE: Noise reduction disabled for speed
-# from app.services.noise_reduction import reduce_noise
 
-# Import metrics
+# Métricas
 from app.core.metrics import (
     record_transcription,
     record_error,
@@ -20,25 +20,27 @@ from app.core.metrics import (
     audio_duration_seconds
 )
 
+
 def process_transcription(task_id: str, file_path: str, options: dict = {}):
+    """Processa uma tarefa de transcrição de áudio."""
     background_db = SessionLocal()
     task_store = crud.TaskStore(background_db)
     
     try:
-        logger.info(f"Starting processing for task {task_id}")
+        logger.info(f"Iniciando processamento da tarefa {task_id}")
         
-        # VALIDATION: Check if file exists before processing
+        # VALIDAÇÃO: Verificar se o arquivo existe antes de processar
         if not os.path.exists(file_path):
-            error_msg = f"File not found: {file_path} (deleted or moved)"
-            logger.error(f"Task {task_id} failed: {error_msg}")
+            error_msg = f"Arquivo não encontrado: {file_path} (excluído ou movido)"
+            logger.error(f"Tarefa {task_id} falhou: {error_msg}")
             task_store.update_status(task_id, "failed", error_message=error_msg)
             
-            # METRICS: Record error
+            # MÉTRICAS: Registrar erro
             record_error('file_not_found', 'transcription')
             record_transcription('error', 0)
             return
         
-        # METRICS: Record file size
+        # MÉTRICAS: Registrar tamanho do arquivo
         file_size = os.path.getsize(file_path)
         file_size_bytes.observe(file_size)
         
@@ -46,40 +48,37 @@ def process_transcription(task_id: str, file_path: str, options: dict = {}):
         
         start_ts = perf_counter()
         
-        # PERFORMANCE: Noise reduction disabled for speed
-        # Use original file directly
+        # PERFORMANCE: Redução de ruído desativada para velocidade
+        # Usar arquivo original diretamente
         cleaned_audio_path = file_path
-        logger.info(f"Using audio file (no noise reduction): {cleaned_audio_path}")
+        logger.info(f"Usando arquivo de áudio (sem redução de ruído): {cleaned_audio_path}")
         
         def update_prog(pct):
             task_store.update_progress(task_id, pct)
         
-        # Fetch Rules
+        # Buscar Regras de Análise
         rules = []
         try:
-            # We need models here. 
-            # app.core.worker imports crud, but we can do raw query or use crud if we add it.
-            # Raw query for simplicity to avoid circular dep if crud depends on models.
             from app.models import AnalysisRule
             active_rules = background_db.query(AnalysisRule).filter(AnalysisRule.is_active == True).all()
             rules = [{'category': r.category, 'keywords': r.keywords} for r in active_rules]
         except Exception as e:
-            logger.warning(f"Could not fetch analysis rules: {e}")
+            logger.warning(f"Não foi possível buscar regras de análise: {e}")
 
         result = whisper_service.process_task(cleaned_audio_path, options=options, progress_callback=update_prog, rules=rules)
         processing_time = perf_counter() - start_ts
         
-        # METRICS: Record audio duration
+        # MÉTRICAS: Registrar duração do áudio
         audio_duration_seconds.observe(result.get("duration", 0))
         
-        # Get original text
+        # Obter texto original
         original_text = result.get("text", "")
         
-        # PERFORMANCE: Spell correction disabled for speed
-        # Whisper already produces high-quality transcriptions
-        logger.info(f"Spell correction: DISABLED (performance optimization)")
+        # PERFORMANCE: Correção ortográfica desativada para velocidade
+        # Whisper já produz transcrições de alta qualidade
+        logger.info(f"Correção ortográfica: DESATIVADA (otimização de performance)")
         
-        # Save Result
+        # Salvar Resultado
         task_store.save_result(
             task_id=task_id,
             text=original_text,
@@ -90,9 +89,9 @@ def process_transcription(task_id: str, file_path: str, options: dict = {}):
             topics=result.get("topics")
         )
         
-        logger.info(f"Task {task_id} completed successfully.")
+        logger.info(f"Tarefa {task_id} concluída com sucesso.")
         
-        # METRICS: Record successful transcription
+        # MÉTRICAS: Registrar transcrição bem-sucedida
         record_transcription(
             status='success',
             duration=processing_time,
@@ -100,23 +99,24 @@ def process_transcription(task_id: str, file_path: str, options: dict = {}):
             device='cuda' if 'cuda' in str(options.get('device', 'cuda')) else 'cpu'
         )
         
-        # CLEANUP: Free RAM and GPU memory after task completion
+        # LIMPEZA: Liberar RAM e memória GPU após conclusão da tarefa
         try:
             from app.utils.memory_cleanup import cleanup_after_task
             cleanup_after_task(task_id, clear_gpu=True)
         except Exception as e:
-            logger.warning(f"Post-task cleanup failed: {e}")
+            logger.warning(f"Limpeza pós-tarefa falhou: {e}")
 
     except Exception as e:
         processing_time = perf_counter() - start_ts
-        logger.error(f"Task {task_id} failed: {e}")
+        logger.error(f"Tarefa {task_id} falhou: {e}")
         task_store.update_status(task_id, "failed", error_message=str(e))
         
-        # METRICS: Record failed transcription
+        # MÉTRICAS: Registrar transcrição com falha
         record_transcription('error', processing_time)
         record_error('processing_error', 'transcription')
     finally:
         background_db.close()
 
-# task_consumer is no longer needed with RQ
-# The process_transcription function is called directly by the RQ worker process
+
+# task_consumer não é mais necessário com RQ
+# A função process_transcription é chamada diretamente pelo worker RQ

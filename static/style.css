@@ -61,6 +61,57 @@
     box-sizing: border-box;
 }
 
+/* ============================================
+   CUSTOM SCROLLBARS - Modern & Beautiful
+   ============================================ */
+
+/* Webkit browsers (Chrome, Safari, Edge) */
+::-webkit-scrollbar {
+    width: 12px;
+    height: 12px;
+}
+
+::-webkit-scrollbar-track {
+    background: var(--bg-input);
+    border-radius: 10px;
+    margin: 2px;
+}
+
+::-webkit-scrollbar-thumb {
+    background: linear-gradient(135deg, var(--primary) 0%, var(--accent) 100%);
+    border-radius: 10px;
+    border: 2px solid var(--bg-input);
+    transition: all 0.3s ease;
+}
+
+::-webkit-scrollbar-thumb:hover {
+    background: linear-gradient(135deg, var(--accent) 0%, var(--primary) 100%);
+    border-color: var(--bg-card);
+    box-shadow: 0 0 10px var(--primary-glow);
+}
+
+::-webkit-scrollbar-thumb:active {
+    background: var(--primary);
+}
+
+/* Firefox */
+* {
+    scrollbar-width: thin;
+    scrollbar-color: var(--primary) var(--bg-input);
+}
+
+/* Thin scrollbar variant for specific elements */
+.thin-scrollbar::-webkit-scrollbar {
+    width: 8px;
+    height: 8px;
+}
+
+.thin-scrollbar::-webkit-scrollbar-thumb {
+    background: var(--primary);
+    border-radius: 8px;
+    border: 1px solid var(--bg-input);
+}
+
 body {
     margin: 0;
     font-family: 'Outfit', sans-serif;
@@ -506,8 +557,10 @@ textarea.result-textarea {
     background: var(--bg-card);
     padding: 32px;
     border-radius: 24px;
-    width: 90%;
-    max-width: 600px;
+    width: 95%;
+    max-width: 1200px;
+    max-height: 90vh;
+    overflow-y: auto;
     border: 1px solid var(--glass-border);
     box-shadow: var(--shadow-lg);
     animation: slideUp 0.3s ease;
@@ -1516,4 +1569,338 @@ textarea.result-textarea {
 
 .wave-bar {
     transform-origin: center;
+}
+
+/* ============================================
+   COMPONENTES REFATORADOS (ex inline styles)
+   ============================================ */
+
+/* Logo Box - Dashboard Header */
+.logo-box {
+    width: 56px;
+    height: 56px;
+    background: linear-gradient(135deg, var(--primary) 0%, var(--accent) 100%);
+    border-radius: 16px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 3px;
+    box-shadow: 0 4px 15px var(--primary-glow);
+}
+
+.logo-box .wave-bar {
+    width: 4px;
+    background: white;
+    border-radius: 2px;
+    animation: wave 1s ease-in-out infinite;
+}
+
+.logo-box .wave-bar:nth-child(1) {
+    height: 12px;
+}
+
+.logo-box .wave-bar:nth-child(2) {
+    height: 20px;
+    animation-delay: 0.1s;
+}
+
+.logo-box .wave-bar:nth-child(3) {
+    height: 28px;
+    animation-delay: 0.2s;
+}
+
+.logo-box .wave-bar:nth-child(4) {
+    height: 20px;
+    animation-delay: 0.3s;
+}
+
+.logo-box .wave-bar:nth-child(5) {
+    height: 12px;
+    animation-delay: 0.4s;
+}
+
+/* Header Titles */
+.header-title {
+    font-size: 1.8rem;
+    margin: 0;
+    font-weight: 700;
+}
+
+.header-subtitle {
+    color: var(--text-muted);
+    margin-top: 4px;
+    margin-bottom: 0;
+}
+
+/* Usage Badge */
+.usage-badge {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 8px 16px;
+    background: var(--bg-card);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+}
+
+.usage-badge i {
+    font-size: 1.2rem;
+    color: var(--primary);
+}
+
+.usage-badge-info {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+}
+
+.usage-badge-label {
+    font-size: 0.75rem;
+    color: var(--text-muted);
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+}
+
+.usage-badge-value {
+    font-weight: 600;
+    font-size: 1rem;
+    color: var(--text-main);
+}
+
+/* Upload Zone Icon */
+.upload-zone-icon {
+    font-size: 48px;
+    color: var(--primary);
+    margin-bottom: 16px;
+    display: block;
+}
+
+.upload-zone-title {
+    margin-bottom: 8px;
+    font-weight: 600;
+}
+
+.upload-zone-subtitle {
+    color: var(--text-muted);
+    margin-bottom: 24px;
+}
+
+/* Status Section */
+.status-section-title {
+    margin-bottom: 16px;
+    font-size: 1.1rem;
+}
+
+/* Section Header */
+.section-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 16px;
+}
+
+.section-header-left {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.section-header-icon {
+    color: var(--primary);
+    font-size: 1.2rem;
+}
+
+.section-header-title {
+    margin: 0;
+}
+
+/* History Table */
+.history-table {
+    width: 100%;
+    border-collapse: collapse;
+    margin-top: 16px;
+}
+
+.history-table thead tr {
+    text-align: left;
+    color: var(--text-muted);
+    font-size: 0.85rem;
+    border-bottom: 1px solid var(--border);
+}
+
+.history-table th {
+    padding: 12px;
+    font-weight: 500;
+}
+
+.history-table th.sortable {
+    cursor: pointer;
+    user-select: none;
+}
+
+.history-table .sort-icon {
+    font-size: 0.9em;
+    vertical-align: middle;
+    margin-left: 4px;
+}
+
+/* View Headers (Reports, Admin, Terminal) */
+.view-header-icon {
+    width: 48px;
+    height: 48px;
+    border-radius: 12px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2);
+}
+
+.view-header-icon i {
+    font-size: 1.5rem;
+    color: white;
+}
+
+.view-header-icon.reports {
+    background: linear-gradient(135deg, #f59e0b 0%, #d97706 100%);
+}
+
+.view-header-icon.admin {
+    background: linear-gradient(135deg, #8b5cf6 0%, #6d28d9 100%);
+}
+
+.view-header-icon.terminal {
+    background: linear-gradient(135deg, #10b981 0%, #059669 100%);
+}
+
+.view-title {
+    margin: 0;
+    font-size: 1.5rem;
+}
+
+.view-subtitle {
+    margin: 0;
+    font-size: 0.85rem;
+    color: var(--text-muted);
+}
+
+/* Terminal Specific */
+.terminal-btn {
+    border: 1px solid var(--border);
+    background: var(--bg-card);
+    padding: 8px 14px;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    transition: all 0.3s ease;
+}
+
+.terminal-btn.danger {
+    border-color: var(--danger);
+    color: var(--danger);
+}
+
+.terminal-btn.primary {
+    border-color: var(--primary);
+    color: var(--primary);
+}
+
+.pulse-dot {
+    width: 8px;
+    height: 8px;
+    background: var(--success);
+    border-radius: 50%;
+    animation: pulse 2s ease-in-out infinite;
+}
+
+.auto-refresh-badge {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    padding: 6px 12px;
+    background: var(--bg-card);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    font-size: 0.8rem;
+    color: var(--text-muted);
+}
+
+/* History Row Clickable */
+.history-row {
+    cursor: pointer;
+    transition: background 0.2s;
+}
+
+.history-row:hover td {
+    background: var(--bg-input);
+}
+
+/* Flex Utilities */
+.flex {
+    display: flex;
+}
+
+.flex-col {
+    flex-direction: column;
+}
+
+.items-center {
+    align-items: center;
+}
+
+.justify-between {
+    justify-content: space-between;
+}
+
+.gap-4 {
+    gap: 4px;
+}
+
+.gap-8 {
+    gap: 8px;
+}
+
+.gap-12 {
+    gap: 12px;
+}
+
+.gap-16 {
+    gap: 16px;
+}
+
+/* Margin Utilities */
+.mb-0 {
+    margin-bottom: 0;
+}
+
+.mb-8 {
+    margin-bottom: 8px;
+}
+
+.mb-16 {
+    margin-bottom: 16px;
+}
+
+.mb-24 {
+    margin-bottom: 24px;
+}
+
+.mb-32 {
+    margin-bottom: 32px;
+}
+
+.mt-24 {
+    margin-top: 24px;
+}
+
+/* Padding Utilities */
+.p-12 {
+    padding: 12px;
+}
+
+.p-24 {
+    padding: 24px;
+}
+
+.p-40 {
+    padding: 40px;
 }

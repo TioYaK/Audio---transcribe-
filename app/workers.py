@@ -1,10 +1,11 @@
 """
-Custom RQ Worker with Memory Management
-Prevents OOM by monitoring memory usage during job execution
+Worker RQ Customizado com Gerenciamento de Memória
+Previne OOM monitorando uso de memória durante execução de jobs
 """
 import psutil
 import signal
 import sys
+import os
 from rq import Worker
 from rq.job import Job
 from typing import Optional
@@ -15,50 +16,50 @@ logger = logging.getLogger(__name__)
 
 class CustomWorker(Worker):
     """
-    Custom RQ Worker with enhanced memory management and graceful shutdown
+    Worker RQ Customizado com gerenciamento de memória aprimorado e shutdown gracioso
     """
     
     def __init__(self, *args, max_memory_mb: int = 3500, max_jobs: int = 100, **kwargs):
         """
-        Initialize custom worker
+        Inicializa o worker customizado
         
         Args:
-            max_memory_mb: Maximum memory in MB before rejecting jobs (default: 3.5GB)
-            max_jobs: Maximum jobs before worker restart (default: 100)
+            max_memory_mb: Memória máxima em MB antes de rejeitar jobs (padrão: 3.5GB)
+            max_jobs: Máximo de jobs antes de reiniciar worker (padrão: 100)
         """
-        # Store max_jobs before passing to parent
+        # Armazenar max_jobs antes de passar para pai
         self.max_jobs = max_jobs
         super().__init__(*args, **kwargs)
         self.max_memory_mb = max_memory_mb
         self.jobs_processed = 0
         
-        # Setup graceful shutdown
+        # Configurar shutdown gracioso
         signal.signal(signal.SIGTERM, self._handle_shutdown)
         signal.signal(signal.SIGINT, self._handle_shutdown)
     
     def _handle_shutdown(self, signum, frame):
-        """Handle graceful shutdown on SIGTERM/SIGINT"""
-        logger.info(f"🛑 Received signal {signum}, shutting down gracefully...")
+        """Trata shutdown gracioso em SIGTERM/SIGINT"""
+        logger.info(f"🛑 Sinal {signum} recebido, encerrando graciosamente...")
         self.request_stop()
     
     def execute_job(self, job: Job, queue) -> bool:
         """
-        Execute job with memory monitoring
+        Executa job com monitoramento de memória
         
         Args:
-            job: RQ Job instance
-            queue: Queue instance
+            job: Instância do Job RQ
+            queue: Instância da fila
             
         Returns:
-            bool: True if job executed successfully
+            bool: True se job executou com sucesso
         """
         try:
-            # Check memory before execution
+            # Verificar memória antes da execução
             process = psutil.Process()
             memory_mb = process.memory_info().rss / 1024 / 1024
             
             if memory_mb > self.max_memory_mb:
-                error_msg = f"Memory limit exceeded: {memory_mb:.2f}MB > {self.max_memory_mb}MB"
+                error_msg = f"Limite de memória excedido: {memory_mb:.2f}MB > {self.max_memory_mb}MB"
                 logger.error(f"❌ {error_msg}")
                 
                 job.set_status('failed')
@@ -68,82 +69,96 @@ class CustomWorker(Worker):
                 
                 return False
             
-            # Log job start
+            # Log início do job
             logger.info(
-                f"▶️  Starting job {job.id} | "
-                f"Memory: {memory_mb:.2f}MB | "
-                f"Jobs processed: {self.jobs_processed}/{self.max_jobs}"
+                f"▶️  Iniciando job {job.id} | "
+                f"Memória: {memory_mb:.2f}MB | "
+                f"Jobs processados: {self.jobs_processed}/{self.max_jobs}"
             )
             
-            # Execute job
+            # Executar job
             result = super().execute_job(job, queue)
             
-            # Update counter
+            # Atualizar contador
             self.jobs_processed += 1
             
-            # Log completion
+            # Log conclusão
             memory_after = process.memory_info().rss / 1024 / 1024
             logger.info(
-                f"✅ Completed job {job.id} | "
-                f"Memory: {memory_after:.2f}MB | "
+                f"✅ Job {job.id} concluído | "
+                f"Memória: {memory_after:.2f}MB | "
                 f"Delta: {memory_after - memory_mb:+.2f}MB"
             )
             
-            # Check if max jobs reached
+            # Verificar se atingiu max jobs
             if self.jobs_processed >= self.max_jobs:
                 logger.warning(
-                    f"⚠️  Max jobs reached ({self.max_jobs}), "
-                    "worker will restart after current job"
+                    f"⚠️  Máximo de jobs atingido ({self.max_jobs}), "
+                    "worker será reiniciado após job atual"
                 )
                 self.request_stop()
             
             return result
             
         except Exception as e:
-            logger.exception(f"❌ Error executing job {job.id}: {e}")
+            logger.exception(f"❌ Erro ao executar job {job.id}: {e}")
             job.set_status('failed')
             job.meta['error'] = str(e)
             job.save()
             return False
     
     def work(self, *args, **kwargs):
-        """Override work method to add startup logging"""
+        """Sobrescreve método work para adicionar log de inicialização"""
         logger.info(
-            f"🚀 Worker started | "
-            f"Max Memory: {self.max_memory_mb}MB | "
-            f"Max Jobs: {self.max_jobs}"
+            f"🚀 Worker iniciado | "
+            f"Memória Máx: {self.max_memory_mb}MB | "
+            f"Jobs Máx: {self.max_jobs}"
         )
         return super().work(*args, **kwargs)
 
 
-def main():
-    """Main entry point for custom worker"""
-    import os
-    from redis import Redis
-    
-    # Get Redis connection using secrets
+def _get_redis_url() -> str:
+    """
+    Obtém URL do Redis de forma segura.
+    Tenta primeiro via módulo de secrets, depois variáveis de ambiente.
+    """
+    # 1. Tentar via módulo de secrets
     try:
         from app.core.secrets import get_redis_url
-        redis_url = get_redis_url()
+        return get_redis_url()
     except Exception as e:
-        logger.warning(f"Failed to load Redis URL from secrets, using fallback: {e}")
-        # Fallback: build from environment
-        redis_host = os.getenv("REDIS_HOST", "redis")
-        redis_port = os.getenv("REDIS_PORT", "6379")
-        redis_db = os.getenv("REDIS_DB", "0")
-        
-        # Try to read password from secret file
-        try:
-            with open("/run/secrets/redis_password", "r") as f:
-                redis_password = f.read().strip()
-        except:
-            redis_password = os.getenv("REDIS_PASSWORD", "")
-        
-        redis_url = f"redis://:{redis_password}@{redis_host}:{redis_port}/{redis_db}"
+        logger.warning(f"Falha ao carregar URL do Redis via secrets: {e}")
     
+    # 2. Fallback: variáveis de ambiente
+    redis_host = os.getenv("REDIS_HOST", "redis")
+    redis_port = os.getenv("REDIS_PORT", "6379")
+    redis_db = os.getenv("REDIS_DB", "0")
+    
+    # 3. Senha: priorizar arquivo de secret, depois env var
+    redis_password = ""
+    secret_path = os.getenv("REDIS_PASSWORD_FILE", "/run/secrets/redis_password")
+    
+    if os.path.exists(secret_path):
+        try:
+            with open(secret_path, "r") as f:
+                redis_password = f.read().strip()
+        except Exception as e:
+            logger.warning(f"Não foi possível ler secret do Redis: {e}")
+    
+    if not redis_password:
+        redis_password = os.getenv("REDIS_PASSWORD", "")
+    
+    return f"redis://:{redis_password}@{redis_host}:{redis_port}/{redis_db}"
+
+
+def main():
+    """Ponto de entrada principal para worker customizado"""
+    from redis import Redis
+    
+    redis_url = _get_redis_url()
     redis_conn = Redis.from_url(redis_url)
     
-    # Create worker
+    # Criar worker
     worker = CustomWorker(
         ['transcription_tasks'],
         connection=redis_conn,
@@ -151,7 +166,7 @@ def main():
         max_jobs=int(os.getenv('WORKER_MAX_JOBS', '100'))
     )
     
-    # Start worker
+    # Iniciar worker
     worker.work(with_scheduler=True, burst=False)
 
 

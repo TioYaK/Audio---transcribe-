@@ -103,45 +103,34 @@
             <!-- DASHBOARD VIEW -->
             <div id="dashboard-view">
                 <div class="header-bar">
-                    <div class="page-title" style="display: flex; align-items: center; gap: 16px;">
-                        <div
-                            style="width: 56px; height: 56px; background: linear-gradient(135deg, var(--primary) 0%, var(--accent) 100%); border-radius: 16px; display: flex; align-items: center; justify-content: center; gap: 3px; box-shadow: 0 4px 15px var(--primary-glow);">
-                            <span class="wave-bar"
-                                style="width: 4px; height: 12px; background: white; border-radius: 2px; animation: wave 1s ease-in-out infinite;"></span>
-                            <span class="wave-bar"
-                                style="width: 4px; height: 20px; background: white; border-radius: 2px; animation: wave 1s ease-in-out 0.1s infinite;"></span>
-                            <span class="wave-bar"
-                                style="width: 4px; height: 28px; background: white; border-radius: 2px; animation: wave 1s ease-in-out 0.2s infinite;"></span>
-                            <span class="wave-bar"
-                                style="width: 4px; height: 20px; background: white; border-radius: 2px; animation: wave 1s ease-in-out 0.3s infinite;"></span>
-                            <span class="wave-bar"
-                                style="width: 4px; height: 12px; background: white; border-radius: 2px; animation: wave 1s ease-in-out 0.4s infinite;"></span>
+                    <div class="page-title flex items-center gap-16">
+                        <div class="logo-box">
+                            <span class="wave-bar"></span>
+                            <span class="wave-bar"></span>
+                            <span class="wave-bar"></span>
+                            <span class="wave-bar"></span>
+                            <span class="wave-bar"></span>
                         </div>
                         <div>
-                            <h1 style="font-size: 1.8rem; margin:0;">Mirror.ia</h1>
-                            <p style="color:var(--text-muted); margin-top:4px;">Sua voz, refletida em inteligência.</p>
+                            <h1 class="header-title">Mirror.ia</h1>
+                            <p class="header-subtitle">Sua voz, refletida em inteligência.</p>
                         </div>
                     </div>
-                    <div id="user-limit-badge"
-                        style="display: flex; align-items: center; gap: 8px; padding: 8px 16px; background: var(--bg-card); border: 1px solid var(--border); border-radius: 12px;">
-                        <i class="fa-solid fa-chart-bar" style="font-size: 1.2rem; color: var(--primary);"></i>
-                        <div style="display: flex; flex-direction: column; gap: 2px;">
-                            <span
-                                style="font-size: 0.75rem; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.5px;">Transcrições</span>
-                            <span id="usage-display" style="font-weight: 600; font-size: 1rem; color: var(--text);">- /
-                                -</span>
+                    <div id="user-limit-badge" class="usage-badge">
+                        <i class="fa-solid fa-chart-bar"></i>
+                        <div class="usage-badge-info">
+                            <span class="usage-badge-label">Transcrições</span>
+                            <span id="usage-display" class="usage-badge-value">- / -</span>
                         </div>
                     </div>
                 </div>
 
                 <!-- Upload Area -->
-                <div class="glass-card" id="upload-zone"
-                    style="text-align: center; padding: 40px; border: 2px dashed var(--border); cursor: pointer;">
+                <div class="glass-card upload-zone" id="upload-zone">
                     <input type="file" id="file-input" multiple hidden accept="audio/*,video/*">
-                    <i class="fa-solid fa-cloud-arrow-up"
-                        style="font-size: 48px; color: var(--primary); margin-bottom: 16px; display: block;"></i>
-                    <h3 style="margin-bottom:8px; font-weight:600">Arraste seus arquivos</h3>
-                    <p style="color:var(--text-muted); margin-bottom:24px">ou clique para selecionar</p>
+                    <i class="fa-solid fa-cloud-arrow-up upload-zone-icon"></i>
+                    <h3 class="upload-zone-title">Arraste seus arquivos</h3>
+                    <p class="upload-zone-subtitle">ou clique para selecionar</p>
                     <button class="btn-primary btn-upload-trigger">
                         <i class="fa-solid fa-upload"></i>
                         Selecionar Arquivos
@@ -149,9 +138,8 @@
                 </div>
 
                 <!-- Status Section -->
-                <!-- Status Section -->
-                <div id="status-section" class="status-list hidden" style="margin-bottom:32px">
-                    <h3 style="margin-bottom:16px; font-size:1.1rem">Em Processamento</h3>
+                <div id="status-section" class="status-list hidden mb-32">
+                    <h3 class="status-section-title">Em Processamento</h3>
                     <div id="inprogress-list"></div>
                 </div>
 
@@ -529,8 +517,8 @@
             </style>
     </div>
 
-    <!-- Main JavaScript -->
-    <script src="/static/script.js?v={{ cache_bust }}" defer></script>
+    <!-- JavaScript Principal - Módulo ES6 -->
+    <script type="module" src="/static/js/main.js?v={{ cache_bust }}"></script>
     <script src="/static/rules-manager.js?v={{ cache_bust }}" defer></script>
 </body>
 

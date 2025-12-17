@@ -1,4 +1,7 @@
-
+"""
+Mirror.ia - Serviço de Transcrição de Áudio
+Ponto de entrada principal da aplicação FastAPI
+"""
 from fastapi import FastAPI, Depends, Request
 from fastapi.staticfiles import StaticFiles
 from fastapi.responses import HTMLResponse, JSONResponse
@@ -11,28 +14,28 @@ import os
 import secrets
 import uuid
 
-# Import Core
+# Importações Core
 from app.core.config import settings, logger
 from app.core.limiter import limiter
 from app.core.queue import task_queue
 
 
-# Import Database
+# Importações Banco de Dados
 from app.database import engine, get_db
 from app import models, auth, crud
 from sqlalchemy.orm import Session
 from slowapi.errors import RateLimitExceeded
 from slowapi import _rate_limit_exceeded_handler
 
-# Import Routers
+# Importar Routers
 from app.api.v1.api import router as api_router
 
-# Create DB Tables (Pending Alembic)
+# Criar Tabelas do BD (Pendente Alembic)
 models.Base.metadata.create_all(bind=engine)
 
 app = FastAPI(title="Mirror.ia - Sua voz, refletida em inteligência")
 
-# Limiter Setup
+# Configuração do Limiter
 app.state.limiter = limiter
 app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
 
@@ -45,39 +48,40 @@ app.add_middleware(
     allow_headers=["Authorization", "Content-Type", "X-Requested-With"],
 )
 
-# Static & Templates
+# Arquivos Estáticos e Templates
 app.mount("/static", StaticFiles(directory="static"), name="static")
 templates = Jinja2Templates(directory="templates")
 CACHE_BUST = str(int(time.time()))
 
-# Include API Router
+# Incluir API Router
 app.include_router(api_router)
 
-# Prometheus Instrumentator (Must be before startup)
+# Prometheus Instrumentator (Deve ser antes do startup)
 try:
     from prometheus_fastapi_instrumentator import Instrumentator
     Instrumentator().instrument(app).expose(app)
-    logger.info("Prometheus metrics initialized")
+    logger.info("Métricas Prometheus inicializadas")
 except ImportError:
-    logger.warning("Prometheus instrumentator not installed.")
+    logger.warning("Prometheus instrumentator não instalado.")
 
 
 @app.on_event("startup")
 async def startup_event():
-    logger.info("Service starting up [Applied Improvements]...")
+    """Evento de inicialização da aplicação."""
+    logger.info("Serviço iniciando [Melhorias Aplicadas]...")
     
 
-    # 2. Infrastructure Setup (Admin & Migrations)
+    # 2. Configuração de Infraestrutura (Admin e Migrações)
     db = next(get_db())
     try:
-        # Create Admin
+        # Criar Admin
         admin = db.query(models.User).filter(models.User.username == "admin").first()
         if not admin:
             pwd = settings.ADMIN_PASSWORD
             if not pwd:
                 pwd = secrets.token_urlsafe(16)
-                # Security: Do NOT log the generated password
-                logger.warning("ADMIN_PASSWORD not set. A temporary password was generated - set ADMIN_PASSWORD in .env")
+                # Segurança: NÃO logar a senha gerada
+                logger.warning("ADMIN_PASSWORD não definida. Senha temporária gerada - defina ADMIN_PASSWORD no .env")
             
             try:
                 db.add(models.User(
@@ -87,15 +91,15 @@ async def startup_event():
                     is_admin=True
                 ))
                 db.commit()
-                logger.info("Admin user created successfully.")
+                logger.info("Usuário admin criado com sucesso.")
             except Exception as e:
                 db.rollback()
-                logger.warning(f"Admin user creation skipped (may already exist): {e}")
+                logger.warning(f"Criação do admin ignorada (pode já existir): {e}")
         else:
-            logger.info("Admin user already exists.")
+            logger.info("Usuário admin já existe.")
             
-        # 3. TASK RECOVERY (Reliability Fix with Better Error Handling)
-        # Re-queue pending tasks if file exists, otherwise mark as failed
+        # 3. RECUPERAÇÃO DE TAREFAS (Correção de Confiabilidade)
+        # Reenficar tarefas pendentes se arquivo existe, senão marcar como falha
         pending_tasks = db.query(models.TranscriptionTask).filter(
             models.TranscriptionTask.status.in_(["queued", "processing"])
         ).all()
@@ -104,81 +108,88 @@ async def startup_event():
         failed_count = 0
         
         for task in pending_tasks:
-            # Check if file still exists
+            # Verificar se arquivo ainda existe
             if os.path.exists(task.file_path):
-                # Reset status to queued
+                # Resetar status para queued
                 task.status = "queued"
                 task.progress = 0
                 task.started_at = None
                 
-                # Parse options from JSON stored in database
+                # Parsear opções do JSON armazenado no banco
                 import json
                 ops = {}
                 if task.options:
                     try:
                         ops = json.loads(task.options)
                     except json.JSONDecodeError:
-                        logger.warning(f"Invalid options JSON for task {task.task_id}, using defaults")
+                        logger.warning(f"JSON de opções inválido para tarefa {task.task_id}, usando padrões")
                         ops = {}
                 
-                # Re-queue
-                logger.info(f"✓ Recovering task {task.task_id} ({task.filename})")
+                # Reenficar
+                logger.info(f"✓ Recuperando tarefa {task.task_id} ({task.filename})")
                 await task_queue.put((task.task_id, task.file_path, ops))
                 recovered_count += 1
             else:
-                # File missing, mark as failed instead of deleting
-                logger.warning(f"✗ Task {task.task_id} file missing: {task.file_path}")
+                # Arquivo ausente, marcar como falha ao invés de deletar
+                logger.warning(f"✗ Arquivo da tarefa {task.task_id} ausente: {task.file_path}")
                 task.status = "failed"
-                task.error_message = f"File not found: {os.path.basename(task.file_path)} (deleted or moved)"
+                task.error_message = f"Arquivo não encontrado: {os.path.basename(task.file_path)} (excluído ou movido)"
                 task.completed_at = None
                 failed_count += 1
                 
         db.commit()
-        logger.info(f"Startup: Recovered {recovered_count} tasks, Marked {failed_count} as failed (missing files)")
+        logger.info(f"Inicialização: {recovered_count} tarefas recuperadas, {failed_count} marcadas como falha (arquivos ausentes)")
 
 
     finally:
         db.close()
 
-# HTML Pages (Web Interface)
+
+# Páginas HTML (Interface Web)
 @app.get("/", response_class=HTMLResponse)
 async def read_root(request: Request):
+    """Página principal."""
     return templates.TemplateResponse("index.html", {"request": request, "cache_bust": CACHE_BUST})
+
 
 @app.get("/login", response_class=HTMLResponse)
 async def login_page(request: Request):
+    """Página de login."""
     return templates.TemplateResponse("login.html", {"request": request, "cache_bust": CACHE_BUST})
+
 
 @app.get("/health")
 async def health_check():
-    """Legacy health check endpoint"""
+    """Endpoint de health check legado."""
     return {"status": "healthy", "gpu": settings.DEVICE == "cuda"}
+
 
 @app.get("/health/live")
 async def liveness_check():
     """
-    Liveness probe - checks if the application is running.
-    Returns 200 if the process is alive.
+    Probe de liveness - verifica se a aplicação está executando.
+    Retorna 200 se o processo está vivo.
     """
     return {"status": "alive", "timestamp": time.time()}
+
 
 @app.get("/health/ready")
 async def readiness_check(db: Session = Depends(get_db)):
     """
-    Readiness probe - checks if the application is ready to serve traffic.
-    Verifies database and Redis connections.
+    Probe de readiness - verifica se a aplicação está pronta para servir tráfego.
+    Verifica conexões com banco de dados e Redis.
     """
     try:
-        # Check database connection
+        # Verificar conexão com banco de dados
         from sqlalchemy import text
         db.execute(text("SELECT 1"))
         
-        # Check Redis connection
+        # Verificar conexão com Redis
         from app.services.cache_service import cache_service
         if not cache_service.redis or not cache_service.redis.ping():
             return JSONResponse(
                 status_code=503,
-                content={"status": "not_ready", "reason": "Redis connection failed"}
+                content={"status": "not_ready", "reason": "Falha na conexão com Redis"}
             )
         
         return {
@@ -189,7 +200,7 @@ async def readiness_check(db: Session = Depends(get_db)):
             "timestamp": time.time()
         }
     except Exception as e:
-        logger.error(f"Readiness check failed: {e}")
+        logger.error(f"Verificação de readiness falhou: {e}")
         return JSONResponse(
             status_code=503,
             content={"status": "not_ready", "reason": str(e)}

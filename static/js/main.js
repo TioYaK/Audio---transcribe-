@@ -329,9 +329,17 @@ function renderHistoryTable(tasks) {
                     ` : `<span style="color:var(--${statusClass})">${task.status}</span>`}
                 </td>
                 <td style="padding:12px">
-                    <button class="action-btn" onclick="event.stopPropagation(); window.deleteTask('${task.task_id}')" title="Excluir">
-                        <i class="fa-solid fa-trash"></i>
-                    </button>
+                    <div style="display:flex; gap:8px;">
+                        <button class="action-btn" onclick="event.stopPropagation(); window.viewResult('${task.task_id}')" title="Visualizar">
+                            <i class="fa-solid fa-eye"></i>
+                        </button>
+                        <button class="action-btn" onclick="event.stopPropagation(); window.location.href='/api/download/${task.task_id}'" title="Download">
+                            <i class="fa-solid fa-download"></i>
+                        </button>
+                        <button class="action-btn" onclick="event.stopPropagation(); window.deleteTask('${task.task_id}')" title="Excluir">
+                            <i class="fa-solid fa-trash"></i>
+                        </button>
+                    </div>
                 </td>
             </tr>
         `;
