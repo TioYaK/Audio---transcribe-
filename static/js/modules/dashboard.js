@@ -153,6 +153,9 @@ function renderInProgress(tasks) {
                 <span class="status-badge status-${t.status}">${t.status === 'processing' ? 'Processando' : 'Na Fila'}</span>
             </div>
             ${t.status === 'processing' ? `
+                ${t.processing_step ? `<div style="font-size:0.85rem; color:var(--primary); margin-bottom:6px; font-weight:500">
+                    <i class="fa-solid fa-cog fa-spin" style="margin-right:6px; font-size:0.8rem"></i>${escapeHtml(t.processing_step)}
+                </div>` : ''}
                 <div class="progress-bar">
                     <div class="progress-fill" style="width: ${t.progress || 0}%"></div>
                 </div>

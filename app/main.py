@@ -98,47 +98,12 @@ async def startup_event():
         else:
             logger.info("Usuário admin já existe.")
             
-        # 3. RECUPERAÇÃO DE TAREFAS (Correção de Confiabilidade)
-        # Reenficar tarefas pendentes se arquivo existe, senão marcar como falha
-        pending_tasks = db.query(models.TranscriptionTask).filter(
-            models.TranscriptionTask.status.in_(["queued", "processing"])
-        ).all()
+        # 3. RECUPERAÇÃO DE TAREFAS - DESABILITADO
+        # NOTA: Recuperação automática desabilitada para evitar duplicação de jobs
+        # Quando o app reinicia, ele não deve reenfileirar tarefas que já estão no Redis
+        # Se necessário, use o endpoint /api/admin/retry-failed para reprocessar tarefas específicas
         
-        recovered_count = 0
-        failed_count = 0
-        
-        for task in pending_tasks:
-            # Verificar se arquivo ainda existe
-            if os.path.exists(task.file_path):
-                # Resetar status para queued
-                task.status = "queued"
-                task.progress = 0
-                task.started_at = None
-                
-                # Parsear opções do JSON armazenado no banco
-                import json
-                ops = {}
-                if task.options:
-                    try:
-                        ops = json.loads(task.options)
-                    except json.JSONDecodeError:
-                        logger.warning(f"JSON de opções inválido para tarefa {task.task_id}, usando padrões")
-                        ops = {}
-                
-                # Reenficar
-                logger.info(f"✓ Recuperando tarefa {task.task_id} ({task.filename})")
-                await task_queue.put((task.task_id, task.file_path, ops))
-                recovered_count += 1
-            else:
-                # Arquivo ausente, marcar como falha ao invés de deletar
-                logger.warning(f"✗ Arquivo da tarefa {task.task_id} ausente: {task.file_path}")
-                task.status = "failed"
-                task.error_message = f"Arquivo não encontrado: {os.path.basename(task.file_path)} (excluído ou movido)"
-                task.completed_at = None
-                failed_count += 1
-                
-        db.commit()
-        logger.info(f"Inicialização: {recovered_count} tarefas recuperadas, {failed_count} marcadas como falha (arquivos ausentes)")
+        logger.info("Recuperação automática de tarefas desabilitada (evita duplicação)")
 
 
     finally:

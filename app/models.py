@@ -20,6 +20,7 @@ class TranscriptionTask(Base):
     language = Column(String, nullable=True)
     duration = Column(Float, nullable=True)
     progress = Column(Integer, default=0, nullable=False)
+    processing_step = Column(String, nullable=True)  # Etapa atual: "Verificando cache", "Otimizando áudio", etc.
     processing_time = Column(Float, nullable=True)
     analysis_status = Column(String, default="Pendente de análise", nullable=True)
     summary = Column(Text, nullable=True)
@@ -48,6 +49,8 @@ class TranscriptionTask(Base):
             "error_message": self.error_message,
             "language": self.language,
             "duration": self.duration,
+            "progress": self.progress,
+            "processing_step": self.processing_step,
             "processing_time": self.processing_time,
             "analysis_status": self.analysis_status or "Pendente de análise",
             "summary": self.summary,

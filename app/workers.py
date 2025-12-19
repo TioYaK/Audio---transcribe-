@@ -96,7 +96,8 @@ class CustomWorker(Worker):
                     f"⚠️  Máximo de jobs atingido ({self.max_jobs}), "
                     "worker será reiniciado após job atual"
                 )
-                self.request_stop()
+                # Usar request_stop com argumentos dummy para evitar erro
+                self.request_stop(None, None)
             
             return result
             

@@ -41,6 +41,15 @@ class TaskStore:
             self.db.refresh(task)
         return task
 
+    def update_processing_step(self, task_id: str, step: str):
+        """Atualiza a etapa atual do processamento com nomenclatura descritiva"""
+        task = self.get_task(task_id)
+        if task:
+            task.processing_step = step
+            self.db.commit()
+            self.db.refresh(task)
+        return task
+
 
     def update_status(self, task_id: str, status: str, error_message: str = None):
         task = self.get_task(task_id)

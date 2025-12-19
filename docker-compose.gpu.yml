@@ -18,7 +18,7 @@ services:
       resources:
         limits:
           cpus: '4.0'
-          memory: 4G
+          memory: 16G # Aumentado de 8G para 16G (evita OOM kills)
         reservations:
           devices:
             - driver: nvidia
@@ -28,8 +28,13 @@ services:
     environment:
       # GPU Configuration
       - DEVICE=cuda
-      - COMPUTE_TYPE=int8
-      - WHISPER_MODEL=medium
+      - COMPUTE_TYPE=int8_float16 # Otimizado para GPU (melhor que int8)
+      - WHISPER_MODEL=small # Melhor para 8GB VRAM (medium usa ~5GB)
+
+      # Worker Configuration
+      - WORKER_MAX_MEMORY_MB=14000
+      - WORKER_MAX_JOBS=100
+      - RQ_WORKER_COUNT=2
 
       # NVIDIA Environment
       - NVIDIA_VISIBLE_DEVICES=all

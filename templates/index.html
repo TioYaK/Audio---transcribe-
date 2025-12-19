@@ -80,10 +80,7 @@
                     <i class="fa-solid fa-terminal"></i>
                     <span>Terminal</span>
                 </a>
-                <a href="#" class="nav-item" id="export-link">
-                    <i class="fa-solid fa-file-export"></i>
-                    <span>Exportar</span>
-                </a>
+                <!-- Sidebar Link Removed -->
             </nav>
 
             <div class="nav-footer">
@@ -367,6 +364,10 @@
                             style="border:1px solid var(--danger); background: var(--bg-card); color: var(--danger); padding: 8px 14px; display: flex; align-items: center; gap: 6px;">
                             <i class="fa-solid fa-trash"></i> Limpar Cache
                         </button>
+                        <button class="action-btn" onclick="window.handleExport()"
+                            style="border:1px solid var(--primary); background: var(--bg-card); color: var(--primary); padding: 8px 14px; display: flex; align-items: center; gap: 6px;">
+                            <i class="fa-solid fa-file-download"></i> Relatório
+                        </button>
                         <button class="action-btn" onclick="regenerateAllAnalyses()"
                             style="border:1px solid var(--primary); background: var(--bg-card); color: var(--primary); padding: 8px 14px; display: flex; align-items: center; gap: 6px;">
                             <i class="fa-solid fa-sync"></i> Regenerar Análises
@@ -518,7 +519,7 @@
     </div>
 
     <!-- JavaScript Principal - Módulo ES6 -->
-    <script type="module" src="/static/js/main.js?v={{ cache_bust }}"></script>
+    <script type="module" src="/static/js/main.js?v={{ cache_bust }}_v8"></script>
     <script src="/static/rules-manager.js?v={{ cache_bust }}" defer></script>
 </body>
 

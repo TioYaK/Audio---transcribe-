@@ -46,6 +46,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
 // === NAVIGATION ===
 function initNavigation() {
+    // Handle View Navigation
     const navLinks = document.querySelectorAll('.nav-item');
 
     navLinks.forEach(link => {
@@ -91,6 +92,44 @@ function initNavigation() {
     // Logout button
     const logoutBtn = document.getElementById('logout-btn');
     if (logoutBtn) logoutBtn.addEventListener('click', logout);
+}
+
+// Expose to window for onclick button event
+window.handleExport = async function () {
+    showToast('Gerando relatório...', 'fa-solid fa-cloud-download-alt');
+    try {
+        const res = await authFetch('/api/export');
+        if (!res.ok) throw new Error('Falha na exportação');
+
+        // Extract filename from header if possible, else default
+        let filename = `relatorio_mirror_${new Date().toISOString().slice(0, 10)}.csv`;
+        const disposition = res.headers.get('Content-Disposition');
+        if (disposition && disposition.indexOf('attachment') !== -1) {
+            const filenameRegex = /filename[^;=\n]*=((['"]).*?\2|[^;\n]*)/;
+            const matches = filenameRegex.exec(disposition);
+            if (matches != null && matches[1]) {
+                filename = matches[1].replace(/['"]/g, '');
+            }
+        }
+
+        const blob = await res.blob();
+        const url = window.URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = filename;
+        document.body.appendChild(a);
+        a.click();
+        window.URL.revokeObjectURL(url);
+        a.remove();
+        showToast('Download iniciado!', 'fa-solid fa-check');
+    } catch (e) {
+        console.error('Export error:', e);
+        showToast('Erro ao baixar relatório', 'fa-solid fa-times');
+    }
+}
+// kept strictly for backward compat if needed, but window.handleExport covers it.
+async function handleExport() {
+    window.handleExport();
 }
 
 // === THEME ===

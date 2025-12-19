@@ -17,10 +17,12 @@ if "sqlite" in DATABASE_URL:
 else:
     # PostgreSQL - use connection pooling
     pool_kwargs = {
-        "pool_size": 20,
-        "max_overflow": 40,
+        "pool_size": 30,           # Aumentado de 20 para 30
+        "max_overflow": 70,        # Aumentado de 40 para 70 (total=100)
         "pool_timeout": 60,
-        "pool_pre_ping": True  # Verify connections before use
+        "pool_pre_ping": True,     # Verify connections before use
+        "pool_recycle": 3600,      # Recicla conexões a cada 1h
+        "echo_pool": False         # Desabilita logging do pool
     }
 
 engine = create_engine(
@@ -34,8 +36,20 @@ SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
 Base = declarative_base()
 
 def get_db():
+    """
+    Dependency para obter sessão do banco.
+    Usa try/except robusto para evitar erros em uploads simultâneos.
+    """
     db = SessionLocal()
     try:
         yield db
+    except Exception:
+        # Em caso de erro, faz rollback antes de fechar
+        db.rollback()
+        raise
     finally:
-        db.close()
+        try:
+            db.close()
+        except Exception:
+            # Ignora erros ao fechar (conexão já pode estar fechada)
+            pass

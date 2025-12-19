@@ -29,7 +29,8 @@ def process_transcription(task_id: str, file_path: str, options: dict = {}):
     try:
         logger.info(f"Iniciando processamento da tarefa {task_id}")
         
-        # VALIDAÇÃO: Verificar se o arquivo existe antes de processar
+        # ETAPA 1: Validação do arquivo
+        task_store.update_processing_step(task_id, "Validando arquivo de áudio")
         if not os.path.exists(file_path):
             error_msg = f"Arquivo não encontrado: {file_path} (excluído ou movido)"
             logger.error(f"Tarefa {task_id} falhou: {error_msg}")
@@ -73,7 +74,8 @@ def process_transcription(task_id: str, file_path: str, options: dict = {}):
             except:
                 pass  # Ignorar se não houver loop async
         
-        # Buscar Regras de Análise
+        # ETAPA 2: Carregamento de regras de análise
+        task_store.update_processing_step(task_id, "Carregando regras de análise")
         rules = []
         try:
             from app.models import AnalysisRule
@@ -82,6 +84,8 @@ def process_transcription(task_id: str, file_path: str, options: dict = {}):
         except Exception as e:
             logger.warning(f"Não foi possível buscar regras de análise: {e}")
 
+        # ETAPA 3: Processamento (transcrição + análise)
+        task_store.update_processing_step(task_id, "Transcrevendo áudio")
         result = whisper_service.process_task(cleaned_audio_path, options=options, progress_callback=update_prog, rules=rules)
         processing_time = perf_counter() - start_ts
         
@@ -91,16 +95,23 @@ def process_transcription(task_id: str, file_path: str, options: dict = {}):
         # Obter texto original
         original_text = result.get("text", "")
         
-        # CORREÇÃO ORTOGRÁFICA: Ativada para todos os áudios
-        corrected_text = original_text
-        try:
-            from app.core.services.spell_checker import correct_text
-            logger.info(f"Aplicando correção ortográfica...")
-            corrected_text = correct_text(original_text)
-            logger.info(f"Correção ortográfica concluída")
-        except Exception as e:
-            logger.warning(f"Falha na correção ortográfica: {e}. Usando texto original.")
-            corrected_text = original_text
+        # ETAPA 4: Correção ortográfica (DESABILITADA para performance)
+        # task_store.update_processing_step(task_id, "Aplicando correção ortográfica")
+        corrected_text = original_text  # Usar texto original sem correção
+        
+        # PERFORMANCE: Correção ortográfica desabilitada - causava gargalo de 20+ min/áudio
+        # Para reabilitar, descomente o bloco abaixo:
+        # try:
+        #     from app.core.services.spell_checker import correct_text
+        #     logger.info(f"Aplicando correção ortográfica...")
+        #     corrected_text = correct_text(original_text)
+        #     logger.info(f"Correção ortográfica concluída")
+        # except Exception as e:
+        #     logger.warning(f"Falha na correção ortográfica: {e}. Usando texto original.")
+        #     corrected_text = original_text
+        
+        logger.info(f"Correção ortográfica desabilitada (modo performance)")
+
         
         # Salvar Resultado (com texto original E corrigido)
         task_store.save_result(

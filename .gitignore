@@ -54,6 +54,9 @@ migrate_*.py
 !IMPLEMENTATION-STATUS.md
 !*_REPORT.md
 !*_GUIDE.md
+!PENTEST_GPU.md
+!PERFORMANCE_GUIDE.md
+!DEPLOY_REPORT.md
 
 # Secrets and SSL (NEVER commit!)
 secrets/

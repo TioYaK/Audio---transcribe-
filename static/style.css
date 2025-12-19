@@ -233,7 +233,8 @@ body {
     gap: 8px;
 }
 
-.nav-item {
+.nav-item,
+.nav-btn-action {
     display: flex;
     align-items: center;
     gap: 12px;
@@ -247,13 +248,15 @@ body {
     /* make look actionable */
 }
 
-.nav-item.active {
+.nav-item.active,
+.nav-btn-action.active {
     background: linear-gradient(90deg, rgba(59, 130, 246, 0.1), transparent);
     color: var(--primary);
     border-left: 3px solid var(--primary);
 }
 
-.nav-item:hover:not(.active) {
+.nav-item:hover:not(.active),
+.nav-btn-action:hover:not(.active) {
     background: var(--bg-body);
     color: var(--text-main);
 }

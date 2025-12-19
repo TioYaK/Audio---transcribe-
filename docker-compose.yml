@@ -264,11 +264,12 @@ services:
       - REDIS_HOST=redis
       - REDIS_PORT=6379
       - REDIS_DB=0
-      - DEVICE=${DEVICE:-cpu} # CPU by default, override with docker-compose.gpu.yml
-      - WHISPER_MODEL=${WHISPER_MODEL:-medium}
-      - COMPUTE_TYPE=${COMPUTE_TYPE:-int8}
-      - WORKER_MAX_MEMORY_MB=3500
+      - DEVICE=cuda # GPU ativada
+      - WHISPER_MODEL=${WHISPER_MODEL:-small}
+      - COMPUTE_TYPE=float16 # GPU suporta float16
+      - WORKER_MAX_MEMORY_MB=14000
       - WORKER_MAX_JOBS=100
+      - RQ_WORKER_COUNT=1
     depends_on:
       db:
         condition: service_healthy
@@ -284,8 +285,12 @@ services:
       resources:
         limits:
           cpus: '4.0'
-          memory: 4G
-        # GPU removed - use docker-compose.gpu.yml for GPU support
+          memory: 16G
+        reservations:
+          devices:
+            - driver: nvidia
+              count: 1
+              capabilities: [ gpu ]
     logging:
       driver: "json-file"
       options:
