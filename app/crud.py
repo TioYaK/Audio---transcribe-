@@ -339,10 +339,9 @@ class TaskStore:
         """Get user's tasks with pagination (excludes archived)"""
         tasks = self.db.query(models.TranscriptionTask).filter(
             models.TranscriptionTask.owner_id == owner_id,
-            models.TranscriptionTask.status.in_(["completed", "failed"]),
             models.TranscriptionTask.is_archived == False  # Exclude archived
         ).order_by(
-            models.TranscriptionTask.completed_at.desc()
+            models.TranscriptionTask.created_at.desc()
         ).offset(offset).limit(limit).all()
         
         return [task.to_dict(include_text=include_text) for task in tasks]
@@ -353,7 +352,7 @@ class TaskStore:
             self.db.query(models.TranscriptionTask, models.User.full_name, models.User.username)
             .outerjoin(models.User, models.TranscriptionTask.owner_id == models.User.id)
             .filter(models.TranscriptionTask.is_archived == False)  # Exclude archived
-            .order_by(models.TranscriptionTask.completed_at.desc())
+            .order_by(models.TranscriptionTask.created_at.desc())
             .offset(offset)
             .limit(limit)
             .all()

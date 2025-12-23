@@ -1,7 +1,9 @@
 
+
 from fastapi import APIRouter, UploadFile, File, Form, HTTPException, Depends, BackgroundTasks, status
 from fastapi.responses import FileResponse, StreamingResponse
 from sqlalchemy.orm import Session
+from typing import Optional, List
 import os
 import shutil
 import uuid
@@ -407,40 +409,61 @@ async def delete_task(task_id: str, db: Session = Depends(get_db), current_user:
     raise HTTPException(status_code=404, detail="Task not found")
 
 @router.get("/export")
-async def export_csv_route(db: Session = Depends(get_db), current_user: models.User = Depends(auth.get_current_user)):
-    task_store = crud.TaskStore(db)
+async def export_csv_route(
+    start_date: Optional[str] = None, 
+    end_date: Optional[str] = None, 
+    status: Optional[str] = None,
+    db: Session = Depends(get_db), 
+    current_user: models.User = Depends(auth.get_current_user)
+):
+    query = db.query(models.TranscriptionTask)
     
-    if current_user.is_admin:
-        data = task_store.get_all_tasks_admin(include_text=True)
-    else:
-        tasks = db.query(models.TranscriptionTask).filter(
-            models.TranscriptionTask.owner_id == current_user.id
-        ).order_by(models.TranscriptionTask.created_at.desc()).all()
-        data = [task.to_dict(include_text=True) for task in tasks]
-        for d in data: d['owner_name'] = current_user.full_name or current_user.username
-
+    # Permission Scope
+    if not current_user.is_admin:
+        query = query.filter(models.TranscriptionTask.owner_id == current_user.id)
+    
+    # Status Filter
+    if status and status not in ["Todos", ""]:
+        s_map = {"Concluídos": "completed", "Processando": "processing", "Falhas": "failed"}
+        actual_st = s_map.get(status, status.lower())
+        query = query.filter(models.TranscriptionTask.status == actual_st)
+    
+    # Date Filter
+    if start_date:
+        query = query.filter(models.TranscriptionTask.created_at >= f"{start_date} 00:00:00")
+    if end_date:
+        query = query.filter(models.TranscriptionTask.created_at <= f"{end_date} 23:59:59")
+        
+    # Execution
+    tasks = query.order_by(models.TranscriptionTask.created_at.desc()).all()
+    
+    # CSV Generation - SIMPLIFIED REPORT
     output = io.StringIO()
-    # BOM for Excel UTF-8 compatibility
-    output.write('\ufeff')
-    # Use semicolon for Excel compatibility in regions that use comma for decimals (like Brazil)
     writer = csv.writer(output, delimiter=';', quoting=csv.QUOTE_ALL)
     
-    headers = ["Arquivo", "ID", "Resumo", "Proprietário", "Transcrição Completa"]
-    writer.writerow(headers)
+    # Cols: File Name (no ext), Result
+    writer.writerow(["Arquivo", "Resultado"])
     
-    for row in data:
-        writer.writerow([
-            row.get('filename'),
-            row.get('task_id'),
-            str(row.get('summary', ''))[:5000], # Keep summary reasonable length if huge
-            row.get('owner_name', 'Eu'),
-            str(row.get('result_text', '')) # Full text, no truncation
-        ])
-        
+    for t in tasks:
+        # Remove extension logic
+        fname = t.filename
+        if fname and '.' in fname:
+            fname = fname.rsplit('.', 1)[0]
+            
+        # Analysis Status
+        res = t.analysis_status
+        if not res:
+            res = "PENDENTE"
+        else:
+            res = res.upper()
+            
+        writer.writerow([fname, res])
+
     output.seek(0)
-    filename = f"relatorio_transcricoes_{datetime.utcnow().strftime('%Y%m%d')}.csv"
+    filename = f"relatorio_simplificado_{datetime.utcnow().strftime('%Y%m%d_%H%M')}.csv"
+    
     return StreamingResponse(
-        iter([output.getvalue()]), 
+        iter([output.getvalue().encode('utf-8-sig')]), 
         media_type="text/csv", 
         headers={"Content-Disposition": f"attachment; filename={filename}"}
     )

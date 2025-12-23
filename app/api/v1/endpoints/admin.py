@@ -34,6 +34,33 @@ async def get_all_users(db: Session = Depends(get_db), current_user: models.User
         })
     return users_data
 
+from pydantic import BaseModel, Field
+
+class CreateUserRequest(BaseModel):
+    username: str = Field(..., min_length=3)
+    password: str = Field(..., min_length=6)
+    limit: int = 30
+
+@router.post("/admin/users/create")
+async def create_user_admin(
+    payload: CreateUserRequest, 
+    db: Session = Depends(get_db), 
+    current_user: models.User = Depends(auth.require_admin)
+):
+    existing = db.query(models.User).filter(models.User.username == payload.username).first()
+    if existing: raise HTTPException(400, "Username taken")
+    
+    new_user = models.User(
+        username=payload.username,
+        hashed_password=auth.get_password_hash(payload.password),
+        is_active=True, 
+        is_admin=False,
+        transcription_limit=payload.limit
+    )
+    db.add(new_user)
+    db.commit()
+    return {"message": "User created", "id": new_user.id}
+
 @router.post("/admin/approve/{user_id}")
 async def approve_user(user_id: str, db: Session = Depends(get_db), current_user: models.User = Depends(auth.require_admin)):
     crud.TaskStore(db).approve_user(user_id)
@@ -44,8 +71,37 @@ async def update_limit(user_id: str, payload: UpdateUserLimitRequest, db: Sessio
     crud.TaskStore(db).update_user_limit(user_id, payload.limit)
     return {"message": "Limite atualizado"}
 
+@router.post("/admin/user/{user_id}/update")
+async def update_user_credentials(
+    user_id: str, 
+    payload: dict = Body(...), 
+    db: Session = Depends(get_db), 
+    current_user: models.User = Depends(auth.require_admin)
+):
+    user = db.query(models.User).filter(models.User.id == user_id).first()
+    if not user: raise HTTPException(404, "User not found")
+    
+    if "username" in payload and payload["username"]:
+        if db.query(models.User).filter(models.User.username == payload["username"], models.User.id != user_id).first():
+            raise HTTPException(400, "Username taken")
+        user.username = payload["username"]
+        
+    if "password" in payload and payload["password"]:
+        user.hashed_password = auth.get_password_hash(payload["password"])
+
+    if "is_admin" in payload:
+        user.is_admin = bool(payload["is_admin"])
+        
+    db.commit()
+    return {"message": "Updated"}
+
 @router.delete("/admin/user/{user_id}")
 async def delete_user(user_id: str, db: Session = Depends(get_db), current_user: models.User = Depends(auth.require_admin)):
+    # Proteção: Não permitir deletar o admin
+    user = db.query(models.User).filter(models.User.id == user_id).first()
+    if user and user.username.lower() == "admin":
+        raise HTTPException(status_code=403, detail="O usuário 'admin' não pode ser excluído")
+    
     crud.TaskStore(db).delete_user(user_id)
     return {"message": "User deleted"}
 
@@ -289,3 +345,53 @@ async def clear_cache(
         logger.error(f"Failed to clear cache: {e}")
         raise HTTPException(status_code=500, detail=str(e))
 
+import psutil
+import shutil
+import subprocess
+
+@router.get("/resources")
+async def get_system_resources(current_user: models.User = Depends(auth.require_admin)):
+    """
+    Get server system resources (CPU, RAM, Disk, GPU).
+    """
+    
+    # 1. CPU
+    # Interval=0.1 avoids 0.0 return on first call (blocking for 100ms)
+    cpu_usage = psutil.cpu_percent(interval=0.1)
+    
+    # 2. RAM
+    mem = psutil.virtual_memory()
+    ram_usage = mem.percent
+    ram_total_gb = round(mem.total / (1024**3), 1)
+    
+    # 3. Disk (Root)
+    disk = shutil.disk_usage("/")
+    disk_usage = round((disk.used / disk.total) * 100, 1)
+    
+    # 4. GPU (Basic check via nvidia-smi if available)
+    gpu_usage = "N/A"
+    gpu_mem = "N/A"
+    try:
+        # Get GPU utilization
+        result = subprocess.check_output(
+            ["nvidia-smi", "--query-gpu=utilization.gpu,memory.used,memory.total", "--format=csv,noheader,nounits"], 
+            encoding='utf-8'
+        )
+        util, mem_used, mem_total = result.strip().split(',')
+        gpu_usage = f"{util.strip()}%"
+        try:
+            gpu_percent = (float(mem_used) / float(mem_total)) * 100
+            gpu_mem = f"{gpu_percent:.1f}%"
+        except:
+            gpu_mem = "N/A"
+    except Exception:
+        pass # No GPU or nvidia-smi not found
+        
+    return {
+        "cpu": cpu_usage,
+        "ram": ram_usage,
+        "ram_total": ram_total_gb,
+        "disk": disk_usage,
+        "gpu": gpu_usage,
+        "gpu_mem": gpu_mem
+    }

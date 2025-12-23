@@ -142,12 +142,31 @@
     }
 
     async function deleteUser(id) {
+        // Proteção adicional: busca info do usuário primeiro
+        try {
+            const usersRes = await window.authFetch('/api/admin/users');
+            const users = await usersRes.json();
+            const user = users.find(u => u.id === id);
+
+            if (user && user.username.toLowerCase() === 'admin') {
+                alert('❌ O usuário "admin" não pode ser excluído!\n\nEste é o usuário principal do sistema.');
+                return;
+            }
+        } catch (e) {
+            console.error('Erro ao verificar usuário:', e);
+        }
+
         if (!confirm('Excluir usuário?')) return;
         try {
-            await window.authFetch(`/api/admin/user/${id}`, { method: 'DELETE' });
+            const res = await window.authFetch(`/api/admin/user/${id}`, { method: 'DELETE' });
+            if (!res.ok) {
+                const err = await res.json();
+                alert('Erro: ' + (err.detail || 'Falha ao excluir'));
+                return;
+            }
             loadAdminUsers();
         } catch (e) {
-            alert('Erro ao excluir');
+            alert('Erro ao excluir: ' + e.message);
         }
     }
 

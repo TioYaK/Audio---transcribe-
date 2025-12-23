@@ -66,39 +66,31 @@ class BusinessAnalyzer:
                 nltk.download(pkg, quiet=True)
 
     def _check_compliance(self, text_lower: str, rules: list = None) -> Dict[str, Any]:
-        # Default Hardcoded Rules (Fallback)
-        # Values mentioned
+        # Positive (Green) - Core Product Terms
+        pos_indicators = [
+            "economia premiável", "economia programada", "título de capitalização",
+            "bradesco capitalização", "capitalização bradesco", "60 meses", "sessenta meses",
+            "carência", "12 meses", "doze meses", "sorteio", "número da sorte",
+            "resgate", "portal proteção", "0800", "central de atendimento",
+            "não é investimento", "não tem rentabilidade garantida"
+        ]
+        
+        # Neutral (Yellow) - Operational Awareness
+        neu_indicators = [
+             "débito na fatura", "débito automático", "reajuste", "ipca", 
+             "renovação", "imposto de renda", "não renova", "cancelamento"
+        ]
+        
+        # Negative (Red) - Misselling/Risk
+        neg_indicators = [
+            "investimento", "rendimento", "rentabilidade", "aplicação financeira", 
+            "cdb", "poupança", "lucro", "juros",
+            "obrigatório", "tem que fazer", "urgente", "só hoje", "cancelar o cartão",
+            "pressão", "banco central"
+        ]
+        
         VALID_PARCELS = ["20", "30", "40", "50", "60", "70", "80", "90", "100", 
                         "110", "120", "130", "140", "150", "160", "170", "180", "190", "200"]
-        
-        # Start with default lists - ECONOMIA PREMIÁVEL (Bradesco Capitalização)
-        pos_indicators = [
-            # Termos do produto
-            "economia premiável", "economia programada", "título de capitalização",
-            "bradesco capitalização", "capitalização bradesco",
-            # Duração e carência
-            "60 meses", "sessenta meses", "cinco anos",
-            "carência", "12 meses", "doze meses",
-            # Sorteios
-            "sorteio semanal", "sorteio mensal", "sorteio trimestral", "sorteio anual",
-            "número da sorte", "concorre a prêmios", "prêmio de até",
-            # Resgate e benefícios
-            "resgate", "ao final do plano", "continua concorrendo",
-            "valor de resgate", "correção monetária", "atualização pelo ipca",
-            # Atendimento e portal
-            "portal proteção", "0800", "central de atendimento",
-            # Pagamento
-            "débito na fatura", "débito automático", "reajuste", "ipca",
-            # Características do produto
-            "não é investimento", "não tem rentabilidade garantida",
-            "produto de capitalização", "regulamentado pela susep"
-        ]
-
-        neg_indicators = [
-            "investimento", "rendimento garantido", "rentabilidade",
-            "aplicação financeira", "obrigatório", "tem que aceitar",
-            "urgente", "só hoje", "última chance", "pressão", "insistência"
-        ]
 
         # Merge with Dynamic Rules
         if rules:
@@ -106,20 +98,24 @@ class BusinessAnalyzer:
                 clean_keys = [k.strip().lower() for k in rule['keywords'].split(',') if k.strip()]
                 if rule['category'] == 'positive':
                      pos_indicators.extend(clean_keys)
-                elif rule['category'] in ['negative', 'critical']:
+                elif rule['category'] == 'negative': # Map 'negative' rule to Neutral/Warning (Yellow)
+                     neu_indicators.extend(clean_keys)
+                elif rule['category'] == 'critical': # Map 'critical' to Forbidden (Red)
                      neg_indicators.extend(clean_keys)
 
         conformidade = {
             "positivos": [],
+            "neutros": [],
             "negativos": [],
             "valor_parcela": None,
             "cliente_aceitou": None
         }
 
-        # Scan Indicators
-        # Use set to avoid duplicates
+        # Unique sets for scanning
         for i in set(pos_indicators):
             if i in text_lower: conformidade["positivos"].append(i)
+        for i in set(neu_indicators):
+            if i in text_lower: conformidade["neutros"].append(i)
         for i in set(neg_indicators):
             if i in text_lower: conformidade["negativos"].append(i)
 
@@ -182,11 +178,15 @@ class BusinessAnalyzer:
         else:
             summary_parts.append("⚠️ Cliente: Decisão não identificada")
             
+        # 3-Tier Classification Display
         if conformidade["positivos"]:
-            summary_parts.append(f"🟢 Pontos de conformidade: {len(conformidade['positivos'])} termos corretos")
+            summary_parts.append(f"🟢 **Conformidade (Bons Termos)**: {', '.join(sorted(set(conformidade['positivos'])))}")
             
-        if conformidade["negativos"] and conformidade["cliente_aceitou"] is not True:
-            summary_parts.append(f"🔴 ALERTAS: {', '.join(conformidade['negativos'][:3])}")
+        if conformidade["neutros"]:
+             summary_parts.append(f"🟡 **Atenção Operacional**: {', '.join(sorted(set(conformidade['neutros'])))}")
+             
+        if conformidade["negativos"]:
+             summary_parts.append(f"🔴 **RISCO CRÍTICO**: {', '.join(sorted(set(conformidade['negativos'])))}")
             
         summary_parts.append("\n📝 Principais pontos:")
         for s in sentences:

@@ -185,6 +185,7 @@ services:
       - whisper-models:/home/appuser/.cache/huggingface
       - uploads:/app/uploads
       - database:/app/data
+      - ./static:/app/static
     environment:
       - WHISPER_MODEL=${WHISPER_MODEL:-medium}
       - DEVICE=cpu # App doesn't need GPU
@@ -211,6 +212,11 @@ services:
         limits:
           cpus: '2.0'
           memory: 3G
+        reservations:
+          devices:
+            - driver: nvidia
+              count: 1
+              capabilities: [ gpu ]
     healthcheck:
       test: [ "CMD-SHELL", "python -c 'import urllib.request; urllib.request.urlopen(\"http://localhost:8000/health/live\").read()'" ]
       interval: 30s
@@ -505,6 +511,45 @@ services:
       options:
         max-size: "10m"
         max-file: "3"
+        compress: "true"
+
+  # ==========================================
+  # IP Updater - Auto Update Public IP
+  # ==========================================
+  ip-updater:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: careca-app:latest
+    container_name: careca-ip-updater
+    restart: unless-stopped
+    command: >
+      sh -c "while true; do
+        python /app/update_ip.py;
+        echo '[INFO] Proximo update em 30 minutos...';
+        sleep 1800;
+      done"
+    volumes:
+      - ./update_ip.py:/app/update_ip.py:ro
+      - ./static:/app/static
+    environment:
+      - IP_UPDATE_SIMPLE=true
+      - GITHUB_TOKEN=${GITHUB_TOKEN:-}
+      - GIST_ID=${GIST_ID:-}
+    deploy:
+      resources:
+        limits:
+          cpus: '0.1'
+          memory: 64M
+    networks:
+      - backend
+    security_opt:
+      - no-new-privileges:true
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "2"
         compress: "true"
 
 # ==========================================
